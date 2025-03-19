@@ -1,0 +1,37 @@
+{
+  "description": "API do Trabalho de Conclusão de Curso - IBRExplorer.",
+  "license": "proprietary",
+  "authors": [
+    {
+      "name": "Matheus Peixoto Silvestre",
+      "email": "matheussilvestre3@edu.univali.br",
+      "role": "Developer"
+    }
+  ],
+  "require": {
+    "php": "8.3.*",
+    "ext-gd": "*",
+    "ext-mbstring": "*",
+    "ext-mysqli": "*",
+    "ext-zip": "*",
+    "brick/math": "0.12.*",
+    "dompdf/dompdf": "v3.0.*",
+    "firebase/php-jwt": "6.10.*",
+    "php-di/php-di": "7.0.*",
+    "phpmailer/phpmailer": "6.9.*",
+    "slim/slim": "4.14.*",
+    "slim/psr7": "1.7.*",
+    "tuupola/cors-middleware": "1.4.*"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "11.2.*"
+  },
+  "autoload": {
+    "psr-4": {
+      "IBRExplorer\\": "src/"
+    }
+  },
+  "config": {
+    "sort-packages": true
+  }
+}

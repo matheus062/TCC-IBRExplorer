@@ -1,0 +1,112 @@
+[
+  {
+    "type": "table",
+    "name": "user",
+    "columns": [
+      {
+        "name": "name",
+        "type": "varchar(254)"
+      },
+      {
+        "name": "email",
+        "type": "varchar(254)",
+        "unique": true
+      },
+      {
+        "name": "password",
+        "type": "varchar(150)",
+        "null": true
+      },
+      {
+        "name": "profileImage",
+        "type": "json",
+        "null": true
+      }
+    ],
+    "indexes": [
+      {
+        "type": "index",
+        "columns": [
+          "name"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "table",
+    "name": "user_role",
+    "columns": [
+      {
+        "name": "user",
+        "parentTable": "user"
+      },
+      {
+        "name": "type",
+        "type": "int"
+      }
+    ],
+    "indexes": [
+      {
+        "type": "unique",
+        "columns": [
+          "user",
+          "type"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "sql",
+    "sql": "SET FOREIGN_KEY_CHECKS = 0"
+  },
+  {
+    "type": "entities",
+    "entities": [
+      {
+        "table": "user",
+        "columns": [
+          "id",
+          "name",
+          "email"
+        ],
+        "values": [
+          [
+            1,
+            "System",
+            "sistema@ibrexplorer.com"
+          ],
+          [
+            2,
+            "Administrador",
+            "admin@ibrexplorer.com"
+          ]
+        ]
+      },
+      {
+        "table": "user_role",
+        "columns": [
+          "user",
+          "type"
+        ],
+        "values": [
+          [
+            1,
+            1
+          ],
+          [
+            2,
+            2
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "type": "sql",
+    "sql": "SET FOREIGN_KEY_CHECKS = 1"
+  }
+]
