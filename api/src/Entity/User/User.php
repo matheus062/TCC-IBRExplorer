@@ -40,7 +40,7 @@ class User extends Entity {
         return false;
     }
 
-    protected function isValueObject(string $field): ?string {
+    public function isValueObject(string $field): ?string {
         return match ($field) {
             'email' => Email::class,
             'profileImage' => File::class,

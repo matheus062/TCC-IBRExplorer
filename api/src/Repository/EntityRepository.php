@@ -18,6 +18,9 @@ use IBRExplorer\Entity\Enum\System\EntityStatus;
 use IBRExplorer\Entity\Interface\HasParentEntities;
 use IBRExplorer\Entity\Interface\HasSingleRelationship;
 use IBRExplorer\Repository\Exception\DuplicateEntityException;
+use IBRExplorer\Repository\Exception\InvalidFileDataException;
+use IBRExplorer\Storage\FileSystem\FileSystem;
+use IBRExplorer\Util\File;
 use IBRExplorer\Util\Strings;
 use JetBrains\PhpStorm\ArrayShape;
 use ReflectionClass;
@@ -58,7 +61,7 @@ class EntityRepository {
 
         $entity = new $this->entityClass($row);
 
-        return $this->convertEntity($entity, $fields);
+        return $this->convertEntity($entity, $fields, true, true);
     }
 
     /**
@@ -66,7 +69,12 @@ class EntityRepository {
      * @throws Exception
      * @noinspection PhpMissingBreakStatementInspection
      */
-    protected function convertEntity(Entity|string $entity, array &$fields, bool $getChildFields = true): Entity {
+    protected function convertEntity(
+        Entity|string $entity,
+        array         &$fields,
+        bool          $getChildFields = true,
+        bool          $getFileData = false,
+    ): Entity {
         if (empty($fields)) {
             $fields = ['entity' => ['id', 'key', 'entityStatus']];
         }
@@ -97,108 +105,109 @@ class EntityRepository {
 
         /** @var int $key */
         foreach ($fields['entity'] as $key => $childField) {
-            $childClass = $entity->isEntity($childField);
+            if (!empty($childClass = $entity->isEntity($childField))) {
+                $multipleEntities = ($reflection->getProperty($childField)->getType()->getName() === 'array');
 
-            if (empty($childClass)) {
-                if (!$reflection->hasProperty($childField)) {
-                    unset($fields['entity'][$key]);
-                }
-
-                continue;
-            }
-
-            $multipleEntities = ($reflection->getProperty($childField)->getType()->getName() === 'array');
-
-            if ($getChildFields) {
-                $fields[$childField] ??= ['*'];
-            } else {
-                $fields[$childField] = ['id', 'key', 'entityStatus'];
-
-                switch ($childClass) {
-                    case Address::class:
-                        $fields[$childField][] = 'state';
-                        $fields[$childField][] = 'city';
-                        $fields[$childField][] = 'street';
-                        $fields[$childField][] = 'number';
-                        $fields[$childField][] = 'neighborhood';
-                        $fields[$childField][] = 'complement';
-                        $fields[$childField][] = 'zipCode';
-                        break;
-                    case State::class:
-                        $fields[$childField][] = 'abbreviation';
-                    case Country::class:
-                    case City::class:
-                        $fields[$childField][] = 'name';
-                    default:
-                        break;
-                }
-            }
-
-            $childTemplate = new $childClass(0);
-
-            if (!$multipleEntities) {
-                if (
-                    ($childTemplate instanceof HasSingleRelationship) &&
-                    in_array($entity::class, $childTemplate->getParentEntities())
-                ) {
-                    $id = $entity->id;
-                } elseif (!empty($entity->$childField)) {
-                    $id = $entity->$childField->id;
+                if ($getChildFields) {
+                    $fields[$childField] ??= ['*'];
                 } else {
+                    $fields[$childField] = ['id', 'key', 'entityStatus'];
+
+                    switch ($childClass) {
+                        case Address::class:
+                            $fields[$childField][] = 'state';
+                            $fields[$childField][] = 'city';
+                            $fields[$childField][] = 'street';
+                            $fields[$childField][] = 'number';
+                            $fields[$childField][] = 'neighborhood';
+                            $fields[$childField][] = 'complement';
+                            $fields[$childField][] = 'zipCode';
+                            break;
+                        case State::class:
+                            $fields[$childField][] = 'abbreviation';
+                        case Country::class:
+                        case City::class:
+                            $fields[$childField][] = 'name';
+                        default:
+                            break;
+                    }
+                }
+
+                $childTemplate = new $childClass(0);
+
+                if (!$multipleEntities) {
+                    if (
+                        ($childTemplate instanceof HasSingleRelationship) &&
+                        in_array($entity::class, $childTemplate->getParentEntities())
+                    ) {
+                        $id = $entity->id;
+                    } elseif (!empty($entity->$childField)) {
+                        $id = $entity->$childField->id;
+                    } else {
+                        continue;
+                    }
+
+                    $childRow = $this->db->rowById(
+                        Strings::getEntityTableName($childClass),
+                        $id,
+                        $fields[$childField]['entity'] ?? $fields[$childField]
+                    );
+
+                    if ($childRow === false) {
+                        continue;
+                    }
+
+                    $child = new $childClass($childRow);
+
+                    if ($child->entityStatus !== EntityStatus::Active) {
+                        unset($fields[$childField]);
+                        unset($entity->$childField);
+
+                        continue;
+                    }
+
+                    $entity->$childField = $child;
+                    self::convertEntity($entity->$childField, $fields[$childField], false);
+
                     continue;
                 }
 
-                $childRow = $this->db->rowById(
+                $entity->$childField = [];
+                $parentField = array_search($entity::class, $childTemplate->getParentEntities());
+
+                if (!($childTemplate instanceof HasParentEntities) || ($parentField === false)) {
+                    continue;
+                }
+
+                $childRows = $this->db->rows(
                     Strings::getEntityTableName($childClass),
-                    $id,
-                    $fields[$childField]['entity'] ?? $fields[$childField]
+                    $fields[$childField]['entity'] ?? $fields[$childField],
+                    [
+                        'entityStatus' => EntityStatus::Active,
+                        $parentField => $entity->id
+                    ],
+                    orderBy: ['id'],
+                    limit: 0,
                 );
 
-                if ($childRow === false) {
+                if (empty($childRows['entities'])) {
                     continue;
                 }
 
-                $child = new $childClass($childRow);
-
-                if ($child->entityStatus !== EntityStatus::Active) {
-                    unset($fields[$childField]);
-                    unset($entity->$childField);
-
-                    continue;
+                foreach ($childRows['entities'] as $childRow) {
+                    $childEntity = new $childClass($childRow);
+                    self::convertEntity($childEntity, $fields[$childField], false);
+                    $entity->$childField[] = $childEntity;
                 }
-
-                $entity->$childField = $child;
-                self::convertEntity($entity->$childField, $fields[$childField], false);
-
-                continue;
-            }
-
-            $entity->$childField = [];
-            $parentField = array_search($entity::class, $childTemplate->getParentEntities());
-
-            if (!($childTemplate instanceof HasParentEntities) || ($parentField === false)) {
-                continue;
-            }
-
-            $childRows = $this->db->rows(
-                Strings::getEntityTableName($childClass),
-                $fields[$childField]['entity'] ?? $fields[$childField],
-                [
-                    'entityStatus' => EntityStatus::Active,
-                    $parentField => $entity->id
-                ],
-                orderBy: ['id'],
-                limit: 0,
-            );
-
-            if (empty($childRows['entities'])) {
-                continue;
-            }
-
-            foreach ($childRows['entities'] as $childRow) {
-                $childEntity = new $childClass($childRow);
-                self::convertEntity($childEntity, $fields[$childField], false);
-                $entity->$childField[] = $childEntity;
+            } elseif (
+                $getFileData &&
+                !empty($valueObjectClass = $entity->isValueObject($childField)) &&
+                ($valueObjectClass === File::class) &&
+                !empty($entity->$childField)
+            ) {
+                FileSystem::getInstance()->readFile($entity->{$childField . 'EntityPath'}(), $entity->$childField);
+            } elseif (!$reflection->hasProperty($childField)) {
+                unset($fields['entity'][$key]);
             }
         }
 
@@ -227,6 +236,7 @@ class EntityRepository {
             $this->table,
             $fields,
             $where,
+            [],
             $orderBy,
             $limit,
             $page,
@@ -253,32 +263,36 @@ class EntityRepository {
      */
     public function save(Entity $entity): bool {
         try {
-            if (!$this->db->inTransaction()) {
-                $this->db->beginTransaction();
-                $this->transactionStarted = true;
-            }
+            $this->beginTransaction();
 
             $childrenToSave = [];
+            $filesToSave = [];
 
             if ($entity->isNew()) {
-                $this->createEntity($entity, $childrenToSave);
+                $this->createEntity($entity, $filesToSave, $childrenToSave);
             } else {
-                $this->updateEntity($entity, $childrenToSave);
+                $this->updateEntity($entity, $filesToSave, $childrenToSave);
+
+                if (!empty($filesToSave)) {
+                    foreach ($filesToSave as $field => $file) {
+                        if (empty($file->data)) {
+                            unset($filesToSave[$field]);
+                        }
+                    }
+                }
+            }
+
+            if (!empty($filesToSave)) {
+                $this->saveFiles($entity, $filesToSave);
             }
 
             if (!empty($childrenToSave)) {
                 $this->saveChildren($entity, $childrenToSave);
             }
 
-            if ($this->transactionStarted) {
-                $this->db->commit();
-                $this->transactionStarted = false;
-            }
+            $this->commit();
         } catch (Exception $e) {
-            if ($this->transactionStarted && $this->db->inTransaction()) {
-                $this->db->rollback();
-                $this->transactionStarted = false;
-            }
+            $this->rollback();
 
             if ($e->getCode() === 1062) {
                 if (preg_match("/for key '(.+)'/", $e->getMessage(), $matches) !== false) {
@@ -301,11 +315,18 @@ class EntityRepository {
         return true;
     }
 
+    protected function beginTransaction(): void {
+        if (!$this->db->inTransaction()) {
+            $this->db->beginTransaction();
+            $this->transactionStarted = true;
+        }
+    }
+
     /**
      * @throws Exception
      */
-    private function createEntity(Entity $entity, array &$childrenToSave): void {
-        $data = $this->prepareEntityDataToSave($entity, $childrenToSave);
+    private function createEntity(Entity $entity, array &$filesToSave, array &$childrenToSave): void {
+        $data = $this->prepareEntityDataToSave($entity, $filesToSave, $childrenToSave);
         $success = $this->db->insertRow($this->table, $data);
         $entity->setId($this->db->getLastInsertId());
 
@@ -317,7 +338,14 @@ class EntityRepository {
     /**
      * @throws Exception
      */
-    protected function prepareEntityDataToSave(Entity $entity, array &$childrenToSave, bool $isChild = false): array {
+    protected function prepareEntityDataToSave(
+        Entity $entity,
+        array  &$filesToSave,
+        array  &$childrenToSave,
+        bool   $isChild = false
+    ): array {
+        // TODO: Fazer a validação da existência das subEntidades no banco de dados (quando a entidade nao é filha)
+
         if ($entity->isNew()) {
             $entity->key = Entity::generateKey();
             $entity->createdAt = new DateTime();
@@ -331,7 +359,7 @@ class EntityRepository {
         $entity->updatedAt = new DateTime();
         $entity->updatedBy = $this->db->getUser();
 
-        $data = $entity->jsonSerialize();
+        $data = $entity->jsonSerialize(true);
         unset($data['id']);
 
         if (!$isChild) {
@@ -342,6 +370,13 @@ class EntityRepository {
             $childClass = $entity->isEntity($field);
 
             if (empty($childClass)) {
+                $valueObject = $entity->isValueObject($field);
+
+                if ($valueObject === File::class) {
+                    $data[$field] = json_encode($value);
+                    $filesToSave[$field] = $entity->$field;
+                }
+
                 continue;
             }
 
@@ -352,7 +387,6 @@ class EntityRepository {
                 $data[$field] = $entity->$field->id;
 
                 continue;
-
             } elseif (!($childTemplate instanceof HasParentEntities) || !in_array($entity::class, $childTemplate->getParentEntities())) {
                 $data[$field] = $value['id'] ?? null;
 
@@ -369,12 +403,32 @@ class EntityRepository {
     /**
      * @throws Exception
      */
-    private function updateEntity(Entity $entity, array &$childrenToSave): void {
-        $data = $this->prepareEntityDataToSave($entity, $childrenToSave);
+    private function updateEntity(Entity $entity, array &$filesToSave, array &$childrenToSave): void {
+        $data = $this->prepareEntityDataToSave($entity, $filesToSave, $childrenToSave);
         $success = $this->db->updateRow($this->table, $data, $entity->id);
 
         if (!$success) {
             throw new Exception('Ocorreu um erro desconhecido ao atualizar a entidade. Tabela: ' . $this->table);
+        }
+    }
+
+    /**
+     * @param Entity $entity
+     * @param File[] $filesToSave
+     * @return void
+     * @throws Exception
+     */
+    private function saveFiles(Entity $entity, array $filesToSave): void {
+        foreach ($filesToSave as $field => $file) {
+            if (empty($file->data)) {
+                throw new InvalidFileDataException();
+            }
+
+            $saved = FileSystem::getInstance()->saveFile($entity->{$field . 'EntityPath'}(), $file);
+
+            if (!$saved) {
+                throw new InvalidFileDataException();
+            }
         }
     }
 
@@ -392,13 +446,15 @@ class EntityRepository {
 
             /** @var Entity&HasParentEntities[] $childrenToSave */
             foreach ($childrenToSave as $child) {
+                $filesToSave = [];
                 $grandChildren = [];
-                $data = $this->prepareEntityDataToSave($child, $grandChildren, true);
+                $data = $this->prepareEntityDataToSave($child, $filesToSave, $grandChildren, true);
                 $parentEntities = $child->getParentEntities();
 
                 if ($child->isNew()) {
                     $parentField = array_search($entity::class, $parentEntities);
                     $data[$parentField] = $entity->id;
+                    $child->$parentField = $entity;
 
                     if ($child instanceof HasSingleRelationship) {
                         $data['id'] = $entity->id;
@@ -421,6 +477,18 @@ class EntityRepository {
                     }
 
                     $this->db->updateRow($childTable, $data, $child->id);
+
+                    if (!empty($filesToSave)) {
+                        foreach ($filesToSave as $field => $file) {
+                            if (empty($file->data)) {
+                                unset($filesToSave[$field]);
+                            }
+                        }
+                    }
+                }
+
+                if (!empty($filesToSave)) {
+                    $this->saveFiles($child, $filesToSave);
                 }
 
                 if (!empty($grandChildren)) {
@@ -430,12 +498,25 @@ class EntityRepository {
         }
     }
 
+    protected function commit(): void {
+        if ($this->transactionStarted) {
+            $this->db->commit();
+            $this->transactionStarted = false;
+        }
+    }
+
+    protected function rollback(): void {
+        if ($this->transactionStarted && $this->db->inTransaction()) {
+            $this->db->rollback();
+            $this->transactionStarted = false;
+        }
+    }
+
     /**
      * @throws Exception
      */
     public function changeStatus(Entity $entity, EntityStatus $status): bool {
         return $this->db->updateRow($this->table, ['status' => $status], $entity->id);
     }
-
 
 }

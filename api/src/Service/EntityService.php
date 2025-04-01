@@ -11,6 +11,7 @@ use IBRExplorer\Entity\Entity;
 use IBRExplorer\Entity\Enum\System\EntityStatus;
 use IBRExplorer\Repository\EntityRepository;
 use IBRExplorer\Repository\Exception\DuplicateEntityException;
+use IBRExplorer\Service\Interface\HasProcessBeforeSave;
 use IBRExplorer\Service\Interface\HasSearchParams;
 use IBRExplorer\Validator\EntityValidator;
 
@@ -42,7 +43,7 @@ class EntityService {
             $limit = 100;
         }
 
-        if ($this instanceof HasSearchParams) {
+        if (($this instanceof HasSearchParams) && !empty($search)) {
             $searchParams = $this->getSearchParams($search);
         }
 
@@ -74,6 +75,10 @@ class EntityService {
         }
 
         try {
+            if ($this instanceof HasProcessBeforeSave) {
+                $this->processBeforeSave($entity);
+            }
+
             $this->repository->save($entity);
         } catch (DuplicateEntityException $e) {
             return $this->setError([
@@ -112,6 +117,10 @@ class EntityService {
         }
 
         try {
+            if ($this instanceof HasProcessBeforeSave) {
+                $this->processBeforeSave($entity);
+            }
+
             return $this->repository->save($entity);
         } catch (DuplicateEntityException $e) {
             return $this->setError([

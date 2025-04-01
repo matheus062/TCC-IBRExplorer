@@ -13,6 +13,7 @@ use IBRExplorer\Entity\User\User;
 use IBRExplorer\Util\ValueObject;
 use JsonSerializable;
 use ReflectionClass;
+use ReflectionEnum;
 use Throwable;
 
 abstract class Entity implements JsonSerializable {
@@ -69,7 +70,7 @@ abstract class Entity implements JsonSerializable {
 
                     continue;
                 } elseif ($this->isDateTime($field)) {
-                    $this->$field = new DateTime($value);
+                    $this->$field = ($value instanceof DateTime) ? (clone $value) : (new DateTime($value));
                 } elseif ($this->isDecimal($field)) {
                     $this->$field = BigDecimal::of($value);
                 } elseif (($entityClass = $this->isEntity($field)) !== null) {
@@ -78,7 +79,7 @@ abstract class Entity implements JsonSerializable {
 
                         foreach ($value as $index => $item) {
                             /** @var Entity $entity */
-                            $entity = new $entityClass($item);
+                            $entity = ($item instanceof Entity) ? $item : new $entityClass($item);
                             $messages = $entity->getMessages();
 
                             if (!empty($messages)) {
@@ -89,7 +90,7 @@ abstract class Entity implements JsonSerializable {
                         }
                     } else {
                         /** @var Entity $entity */
-                        $entity = new $entityClass($value);
+                        $entity = ($value instanceof Entity) ? $value : new $entityClass($value);
                         $messages = $entity->getMessages();
 
                         if (!empty($messages)) {
@@ -108,14 +109,22 @@ abstract class Entity implements JsonSerializable {
 
                     $this->$field = $valueObject;
                 } elseif (($enumClass = $this->isEnum($field)) !== null) {
-                    /** @noinspection PhpUndefinedMethodInspection */
-                    $this->$field = ($value instanceof BackedEnum) ? $value : $enumClass::tryFrom((int)$value);
-                } else {
-                    if ($reflection->getProperty($field)->getType()->getName() === 'int') {
-                        $value = (int)$value;
+                    if ($value instanceof BackedEnum) {
+                        $this->$field = $value;
+                    } else {
+                        $reflectionEnum = new ReflectionEnum($enumClass);
+                        $backingType = $reflectionEnum->getBackingType()->getName();
+                        /** @noinspection PhpUndefinedMethodInspection */
+                        $this->$field = ($backingType === 'int')
+                            ? $enumClass::tryFrom((int)$value)
+                            : $enumClass::tryFrom($value);
                     }
-
-                    $this->$field = $value;
+                } else {
+                    $this->$field = match ($reflection->getProperty($field)->getType()->getName()) {
+                        'int' => (int)$value,
+                        'bool' => (bool)$value,
+                        default => $value
+                    };
                 }
             } catch (Throwable $e) {
                 $this->messages[$field] = 'Não foi possível inicializar o campo: ' . $e->getMessage();
@@ -142,7 +151,7 @@ abstract class Entity implements JsonSerializable {
         return $this->messages;
     }
 
-    protected function isValueObject(string $field): ?string {
+    public function isValueObject(string $field): ?string {
         return null;
     }
 
@@ -165,7 +174,7 @@ abstract class Entity implements JsonSerializable {
         return $this->isNew;
     }
 
-    public function jsonSerialize(): array {
+    public function jsonSerialize(bool $database = false): array {
         $data = (array)$this;
         $reflectionClass = new ReflectionClass($this);
 
@@ -184,13 +193,13 @@ abstract class Entity implements JsonSerializable {
                 if (!empty($this->isEntity($field))) {
                     if (is_array($value)) {
                         foreach ($value as $index => $item) {
-                            $data[$field][$index] = $item->jsonSerialize();
+                            $data[$field][$index] = $item->jsonSerialize($database);
                         }
                     } else {
-                        $data[$field] = $value->jsonSerialize();
+                        $data[$field] = $value->jsonSerialize($database);
                     }
                 } elseif (!empty($this->isValueObject($field))) {
-                    $data[$field] = $value->getValue();
+                    $data[$field] = $value->jsonSerialize($database);
                 } elseif (!empty($this->isEnum($field))) {
                     $data[$field] = $value->value;
                 } elseif (!empty($this->isDateTime($field))) {

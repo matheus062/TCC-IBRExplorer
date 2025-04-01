@@ -26,7 +26,7 @@ class Address extends Entity {
         };
     }
 
-    protected function isValueObject(string $field): ?string {
+    public function isValueObject(string $field): ?string {
         return match ($field) {
             'zipCode' => ZipCode::class,
             default => parent::isValueObject($field),

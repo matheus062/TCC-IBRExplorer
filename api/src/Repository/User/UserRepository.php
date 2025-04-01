@@ -12,6 +12,7 @@ use IBRExplorer\Entity\User\User;
 use IBRExplorer\Entity\User\UserRole;
 use IBRExplorer\Repository\EntityRepository;
 use IBRExplorer\Repository\Exception\ForbiddenEntityException;
+use JetBrains\PhpStorm\ArrayShape;
 
 class UserRepository extends EntityRepository {
 
@@ -37,7 +38,10 @@ class UserRepository extends EntityRepository {
         return $this->read($user->id, $fields);
     }
 
-    public function list(
+    #[ArrayShape([
+        'entities' => 'array',
+        'total' => 'int'
+    ])] public function list(
         array $fields = ['id', 'key'],
         array $where = [],
         array $orderBy = [],
@@ -63,7 +67,12 @@ class UserRepository extends EntityRepository {
         return parent::read($id, $fields);
     }
 
-    protected function prepareEntityDataToSave(Entity $entity, array &$childrenToSave, bool $isChild = false): array {
+    protected function prepareEntityDataToSave(
+        Entity $entity,
+        array  &$filesToSave,
+        array  &$childrenToSave,
+        bool   $isChild = false
+    ): array {
         if ($entity instanceof User) {
             if ($entity->checkUserHasRole(UserRoleType::System)) {
                 throw new ForbiddenEntityException('Usuários do tipo System não podem ser salvos.');
@@ -87,7 +96,8 @@ class UserRepository extends EntityRepository {
 
         }
 
-        return parent::prepareEntityDataToSave($entity, $childrenToSave, $isChild);
+        return parent::prepareEntityDataToSave($entity, $filesToSave, $childrenToSave, $isChild);
     }
+
 
 }

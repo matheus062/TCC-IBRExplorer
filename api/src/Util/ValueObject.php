@@ -8,14 +8,14 @@ use JsonSerializable;
 
 abstract class ValueObject implements JsonSerializable {
 
-    protected string $value;
+    protected array|string $value;
     protected array|string $messages = [];
 
-    public function getValue(): string {
+    public function getValue(): array|string {
         return $this->value;
     }
 
-    public function setValue(string $value): bool {
+    public function setValue(array|string $value): bool {
         $this->value = $value;
 
         return $this->validate();

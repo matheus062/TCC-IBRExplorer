@@ -174,7 +174,7 @@ class MySql {
         array  $where = [],
         array  $orderBy = []
     ): array|false {
-        return $this->rows($table, $fields, $where, $orderBy, 1)['entities'][0] ?? false;
+        return $this->rows($table, $fields, $where, [], $orderBy, 1)['entities'][0] ?? false;
     }
 
     /**
@@ -184,6 +184,7 @@ class MySql {
         string $table,
         array  $fields = ['id', 'key', 'entityStatus'],
         array  $where = [],
+        array $groupBy = [],
         array  $orderBy = [],
         int    $limit = 15,
         int    $page = 1,
@@ -207,16 +208,18 @@ class MySql {
         $fields = array_values($fields);
 
         if ($fields[0] !== '*') {
-            if (!in_array('entityStatus', $fields) && $this->columnExists($table, 'entityStatus')) {
-                array_unshift($fields, 'entityStatus');
-            }
+            if (empty($groupBy)) {
+                if (!in_array('entityStatus', $fields) && $this->columnExists($table, 'entityStatus')) {
+                    array_unshift($fields, 'entityStatus');
+                }
 
-            if (!in_array('key', $fields) && $this->columnExists($table, 'key')) {
-                array_unshift($fields, 'key');
-            }
+                if (!in_array('key', $fields) && $this->columnExists($table, 'key')) {
+                    array_unshift($fields, 'key');
+                }
 
-            if (!in_array('id', $fields)) {
-                array_unshift($fields, 'id');
+                if (!in_array('id', $fields)) {
+                    array_unshift($fields, 'id');
+                }
             }
 
             $fields = array_filter(
@@ -237,14 +240,16 @@ class MySql {
             $fieldsLine = $table . '.*';
         }
 
-        $innerJoinLine = $this->getInnerJoinLine($table, $where);
+        $innerJoinLine = $this->getInnerJoinLine($table, $where, $searchParams);
         $whereLine = $this->getWhereLine($table, $where, $searchParams, $params);
-        $orderByLine = $this->getOrderByLine($orderBy);
+        $groupByLine = $this->getGroupByLine($table, $groupBy);
+        $orderByLine = $this->getOrderByLine($table, $orderBy);
         $limitLine = $this->getLimitLine($limit, $page);
 
         $sql = 'SELECT ' . $fieldsLine . ' FROM `' . $this->mysqli->real_escape_string($table) . '` ' .
             $innerJoinLine . ' ' .
             $whereLine . ' ' .
+            $groupByLine . ' ' .
             $orderByLine . ' ' .
             $limitLine;
         $this->execute($sql, $params);
@@ -261,7 +266,7 @@ class MySql {
     /**
      * @throws Exception
      */
-    private function getInnerJoinLine(string $table, array $where): string {
+    private function getInnerJoinLine(string $table, array $where, array $searchParams): string {
         $innerJoinLine = '';
 
         if (empty($where)) {
@@ -323,6 +328,8 @@ class MySql {
 
                             switch ($operator) {
                                 case 'IN':
+                                case 'NOT IN':
+                                    $value = $value['values'] ?? $value;
                                     $param = '(' . implode(',', array_fill(0, count($value), '?')) . ')';
 
                                     break;
@@ -394,7 +401,23 @@ class MySql {
         return $whereLine;
     }
 
-    private function getOrderByLine(array $orderBy): string {
+    private function getGroupByLine(string $table, array $groupBy): string {
+        if (empty($groupBy)) {
+            return '';
+        }
+
+        return 'GROUP BY ' . implode(
+                ', ',
+                array_map(
+                    function ($field) use ($table) {
+                        return '`' . $table . '`.`' . $this->mysqli->real_escape_string($field) . '`';
+                    },
+                    $groupBy
+                )
+            );
+    }
+
+    private function getOrderByLine(string $table, array $orderBy): string {
         if (empty($orderBy)) {
             return '';
         }
@@ -402,11 +425,11 @@ class MySql {
         return 'ORDER BY ' . implode(
                 ', ',
                 array_map(
-                    function ($field) {
+                    function ($field) use ($table) {
                         $hasDesc = str_contains($field, 'DESC');
                         $field = trim(str_replace(['DESC', 'ASC'], '', $field));
 
-                        return '`' . $this->mysqli->real_escape_string($field) . '` ' . ($hasDesc ? 'DESC' : 'ASC');
+                        return '`' . $table . '`.`' . $this->mysqli->real_escape_string($field) . '` ' . ($hasDesc ? 'DESC' : 'ASC');
                     },
                     $orderBy
                 )
@@ -444,6 +467,7 @@ class MySql {
                 'entityStatus' => EntityStatus::Active,
                 'user' => $user->id
             ],
+            [],
             ['type'],
             0
         );
