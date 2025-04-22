@@ -31,6 +31,7 @@ use IBRExplorer\Repository\User\UserRepository;
 use IBRExplorer\Service\Address\CityService;
 use IBRExplorer\Service\Address\CountryService;
 use IBRExplorer\Service\EntityService;
+use IBRExplorer\Storage\FileSystem\FileSystem;
 use Slim\App;
 use Slim\Factory\AppFactory;
 use Slim\Routing\RouteCollectorProxy;
@@ -48,6 +49,7 @@ class IBRExplorerApi {
             self::$instance = new IBRExplorerApi();
             self::$instance->prepareApp();
             self::$instance->setRoutes();
+            self::$instance->startFileSystem();
             self::$instance->startDbConnection();
         }
 
@@ -168,6 +170,13 @@ class IBRExplorerApi {
             '/user',
             User::class,
             permissionMiddleware: UsersPermission::class
+        );
+    }
+
+    private function startFileSystem(): void {
+        FileSystem::getInstance(
+            __DIR__ . '/../../../files/',
+            __DIR__ . '/../../assets/',
         );
     }
 

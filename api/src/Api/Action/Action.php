@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace IBRExplorer\Api\Action;
 
+use IBRExplorer\Api\Enum\ActionMethod;
 use IBRExplorer\Api\Enum\ContentType;
 use IBRExplorer\Api\Exception\BadRequestException;
 use IBRExplorer\Api\Exception\UnsupportedMediaTypeException;
@@ -39,7 +40,11 @@ abstract class Action {
     protected function prepare(): void {
         $this->headers = $this->getHeaders();
         $this->params = $this->request->getQueryParams();
-        $this->arguments = $this->request->getAttributes();
+        $this->arguments = array_filter(
+            $this->request->getAttributes(),
+            fn($key) => !str_starts_with($key, '_'),
+            ARRAY_FILTER_USE_KEY
+        );
         $this->body = $this->getBody();
     }
 
@@ -47,7 +52,7 @@ abstract class Action {
         $headers = $this->request->getHeaders();
 
         if (
-            in_array($this->request->getMethod(), ['POST', 'PUT']) &&
+            in_array(strtolower($this->request->getMethod()), [ActionMethod::Post, ActionMethod::Put]) &&
             (empty($headers['Content-Type']) || ($headers['Content-Type'][0] !== ContentType::Json->value))
         ) {
             throw new UnsupportedMediaTypeException($this->request);
@@ -65,7 +70,7 @@ abstract class Action {
 
         $data = json_decode($body, true);
 
-        if (empty($data)) {
+        if (empty($data) && !is_array($data)) {
             throw new BadRequestException(
                 $this->request,
                 'Dados enviados no corpo da requisição são inválidos.'

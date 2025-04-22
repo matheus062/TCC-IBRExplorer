@@ -1,4 +1,4 @@
-<?php /** @noinspection SqlNoDataSourceInspection */
+<?php
 
 declare(strict_types=1);
 
@@ -170,9 +170,9 @@ class MySql {
      */
     public function row(
         string $table,
-        array  $fields = ['id', 'key', 'entityStatus'],
-        array  $where = [],
-        array  $orderBy = []
+        array $fields = ['id', 'key', 'entityStatus'],
+        array $where = [],
+        array $orderBy = []
     ): array|false {
         return $this->rows($table, $fields, $where, [], $orderBy, 1)['entities'][0] ?? false;
     }
@@ -182,13 +182,13 @@ class MySql {
      */
     public function rows(
         string $table,
-        array  $fields = ['id', 'key', 'entityStatus'],
+        array $fields = ['id', 'key', 'entityStatus'],
         array  $where = [],
         array $groupBy = [],
         array  $orderBy = [],
         int    $limit = 15,
-        int    $page = 1,
-        array  $searchParams = []
+        int   $page = 1,
+        array $searchParams = []
     ): array {
         $params = [];
 
@@ -240,7 +240,7 @@ class MySql {
             $fieldsLine = $table . '.*';
         }
 
-        $innerJoinLine = $this->getInnerJoinLine($table, $where, $searchParams);
+        $innerJoinLine = $this->getInnerJoinLine($table, $where, $orderBy, $searchParams);
         $whereLine = $this->getWhereLine($table, $where, $searchParams, $params);
         $groupByLine = $this->getGroupByLine($table, $groupBy);
         $orderByLine = $this->getOrderByLine($table, $orderBy);
@@ -266,26 +266,32 @@ class MySql {
     /**
      * @throws Exception
      */
-    private function getInnerJoinLine(string $table, array $where, array $searchParams): string {
+    private function getInnerJoinLine(string $table, array $where, array $orderBy, array $searchParams): string {
         $innerJoinLine = '';
+        $tablesJoined = [];
+        $joinTables = array_filter([
+            ...array_keys($where),
+            ...array_values($orderBy),
+            // ...array_keys($searchParams)
+        ], fn($tableField) => str_contains($tableField, '.'));
 
-        if (empty($where)) {
+        if (empty($joinTables)) {
             return $innerJoinLine;
         }
 
-        foreach ($where as $tableField => $value) {
-            if (!str_contains($tableField, '.')) {
+        foreach ($joinTables as $tableField) {
+            $childTable = explode('.', $tableField)[0];
+
+            if (in_array($childTable, $tablesJoined)) {
                 continue;
             }
 
-            $childTable = explode('.', $tableField)[0];
-
             $query = "
-                SELECT CONCAT('`', REFERENCED_TABLE_NAME, '`.`', REFERENCED_COLUMN_NAME, '` = `', TABLE_NAME, '`.`', COLUMN_NAME, '`') AS joinCondition
-                FROM information_schema.KEY_COLUMN_USAGE
-                WHERE COLUMN_NAME NOT IN ('createdBy', 'updatedBy') AND ((TABLE_NAME = ? AND REFERENCED_TABLE_NAME = ?) OR (TABLE_NAME = ? AND REFERENCED_TABLE_NAME = ?))
-                LIMIT 1;
-            ";
+            SELECT CONCAT('`', REFERENCED_TABLE_NAME, '`.`', REFERENCED_COLUMN_NAME, '` = `', TABLE_NAME, '`.`', COLUMN_NAME, '`') AS joinCondition
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE COLUMN_NAME NOT IN ('createdBy', 'updatedBy') AND ((TABLE_NAME = ? AND REFERENCED_TABLE_NAME = ?) OR (TABLE_NAME = ? AND REFERENCED_TABLE_NAME = ?))
+            LIMIT 1;
+        ";
             $params = [
                 $table,
                 $childTable,
@@ -304,11 +310,12 @@ class MySql {
             }
 
             $innerJoinLine .= ' INNER JOIN `' . $this->mysqli->real_escape_string($childTable) . '` ON ' . $joinCondition . PHP_EOL;
+            $tablesJoined[] = $childTable;
+
         }
 
         return $innerJoinLine;
     }
-
 
     private function getWhereLine(string $table, array $where, array $search, array &$params): string {
         $whereLine = '';
@@ -429,7 +436,13 @@ class MySql {
                         $hasDesc = str_contains($field, 'DESC');
                         $field = trim(str_replace(['DESC', 'ASC'], '', $field));
 
-                        return '`' . $table . '`.`' . $this->mysqli->real_escape_string($field) . '` ' . ($hasDesc ? 'DESC' : 'ASC');
+                        if (str_contains($field, '.')) {
+                            $field = explode('.', $field);
+                            $table = $field[0];
+                            $field = $field[1];
+                        }
+
+                        return '`' . $this->mysqli->real_escape_string($table) . '`.`' . $this->mysqli->real_escape_string($field) . '` ' . ($hasDesc ? 'DESC' : 'ASC');
                     },
                     $orderBy
                 )

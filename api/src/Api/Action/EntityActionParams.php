@@ -78,7 +78,9 @@ readonly class EntityActionParams {
         $orderBy = explode(',', $params['orderBy']);
 
         foreach ($orderBy as $key => $field) {
-            if (str_contains($field, ' ')) {
+            if (str_contains($field, '.')) {
+                $field = explode('.', $field)[0];
+            } elseif (str_contains($field, ' ')) {
                 $field = explode(' ', $field)[0];
             }
 
