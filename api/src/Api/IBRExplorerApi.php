@@ -94,56 +94,38 @@ class IBRExplorerApi {
         $this->entityCrudRoute('/city', City::class, null, null);
     }
 
+    /**
+     * @param string $endpoint
+     * @param string $entityClass
+     * @param string|null $createAction
+     * @param string|null $updateAction
+     * @param string|null $readAction
+     * @param string|null $listAction
+     * @param string|null $permissionMiddleware
+     * @return void
+     * @noinspection PhpSameParameterValueInspection
+     */
     private function entityCrudRoute(
         string  $endpoint,
         string  $entityClass,
-        ?string $entityCreateAction = EntityCreateAction::class,
-        ?string $entityUpdateAction = EntityUpdateAction::class,
-        ?string $entityReadAction = EntityReadAction::class,
-        ?string $entityListAction = EntityListAction::class,
+        ?string $createAction = EntityCreateAction::class,
+        ?string $updateAction = EntityUpdateAction::class,
+        ?string $readAction = EntityReadAction::class,
+        ?string $listAction = EntityListAction::class,
         ?string $permissionMiddleware = null
     ): void {
+        $endpoints = [
+            [ActionMethod::Get, $endpoint, $listAction],
+            [ActionMethod::Post, $endpoint, $createAction],
+            [ActionMethod::Put, $endpoint . '/{id}', $updateAction],
+            [ActionMethod::Get, $endpoint . '/{id}', $readAction]
+        ];
         $arguments = ['entityClass' => $entityClass];
 
-        if (!empty($entityListAction)) {
-            $this->setEndpoint(
-                ActionMethod::Get,
-                $endpoint,
-                $entityListAction,
-                $arguments,
-                $permissionMiddleware
-            );
-        }
-
-
-        if (!empty($entityCreateAction)) {
-            $this->setEndpoint(
-                ActionMethod::Post,
-                $endpoint,
-                $entityCreateAction,
-                $arguments,
-                $permissionMiddleware
-            );
-        }
-
-        if (!empty($entityUpdateAction)) {
-            $this->setEndpoint(
-                ActionMethod::Put,
-                $endpoint . '/{id}',
-                $entityUpdateAction,
-                $arguments,
-                $permissionMiddleware
-            );
-        }
-
-        if (!empty($entityReadAction)) {
-            $this->setEndpoint(
-                ActionMethod::Get,
-                $endpoint . '/{id}',
-                $entityReadAction,
-                $arguments,
-                $permissionMiddleware
-            );
+        foreach ($endpoints as [$method, $endpoint, $entityClass]) {
+            if (!empty($entityClass)) {
+                $this->setEndpoint($method, $endpoint, $entityClass, $arguments, $permissionMiddleware);
+            }
         }
     }
 
