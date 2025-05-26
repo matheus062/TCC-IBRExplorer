@@ -9,5 +9,7 @@ enum FileExt: string {
     case PDF = 'pdf';
     case XLSX = 'xlsx';
     case TXT = 'txt';
+    case PCAP = 'pcap';
+    case PCAPNG = 'pcapng';
 
 }
