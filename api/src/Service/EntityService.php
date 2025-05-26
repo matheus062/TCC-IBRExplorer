@@ -28,36 +28,6 @@ class EntityService {
         $this->repository = IBRExplorerApi::getInstance()->getEntityRepository($entityClass);
     }
 
-    public function list(
-        array  $fields = ['id', 'key'],
-        array  $where = [],
-        array  $orderBy = ['id DESC'],
-        int    $limit = 15,
-        int    $page = 1,
-        string $search = '',
-    ): array|false {
-        $this->setError([]);
-        $where['entityStatus'] ??= EntityStatus::Active;
-
-        if ($limit > 100) {
-            $limit = 100;
-        }
-
-        if (($this instanceof HasSearchParams) && !empty($search)) {
-            $searchParams = $this->getSearchParams($search);
-        }
-
-        try {
-            return $this->repository->list($fields, $where, $orderBy, $limit, $page, $searchParams ?? []);
-        } catch (Exception $e) {
-            return $this->setError($e->getMessage(), $e->getCode());
-        }
-    }
-
-    public function getCode(): StatusCode {
-        return $this->code ?? StatusCode::Ok;
-    }
-
     public function create(Entity|array $data): int|false {
         $this->setError([]);
 
@@ -90,6 +60,10 @@ class EntityService {
         }
 
         return $entity->id;
+    }
+
+    public function getCode(): StatusCode {
+        return $this->code ?? StatusCode::Ok;
     }
 
     public function update(int $id, Entity|array $data): bool {
@@ -146,6 +120,42 @@ class EntityService {
         }
 
         return $entity;
+    }
+
+    public function getByKey(string $key, array $fields = ['*']): Entity|false {
+        $id = $this->list(['id'], ['key' => $key], limit: 1)['entities'][0]->id ?? false;
+
+        if ($id === false) {
+            return $this->setError('Registro não localizado.', StatusCode::NotFound);
+        }
+
+        return $this->getById($id, $fields);
+    }
+
+    public function list(
+        array  $fields = ['id', 'key'],
+        array  $where = [],
+        array  $orderBy = ['id DESC'],
+        int    $limit = 15,
+        int    $page = 1,
+        string $search = '',
+    ): array|false {
+        $this->setError([]);
+        $where['entityStatus'] ??= EntityStatus::Active;
+
+        if ($limit > 100) {
+            $limit = 100;
+        }
+
+        if (($this instanceof HasSearchParams) && !empty($search)) {
+            $searchParams = $this->getSearchParams($search);
+        }
+
+        try {
+            return $this->repository->list($fields, $where, $orderBy, $limit, $page, $searchParams ?? []);
+        } catch (Exception $e) {
+            return $this->setError($e->getMessage(), $e->getCode());
+        }
     }
 
     public function changeStatus(int $id, EntityStatus $status): bool {
