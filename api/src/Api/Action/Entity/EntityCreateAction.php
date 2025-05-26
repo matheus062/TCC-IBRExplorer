@@ -12,6 +12,10 @@ class EntityCreateAction extends EntityAction {
     protected function run(): Response {
         if (empty($this->body)) {
             return $this->respond('O corpo da requisição é obrigatório.', StatusCode::BadRequest);
+        } elseif (!empty($this->arguments)) {
+            foreach ($this->arguments as $key => $argument) {
+                $this->body[$key] = $argument; // Adiciona ao corpo para forçar o Parent
+            }
         }
 
         $result = $this->entityService->create($this->body);

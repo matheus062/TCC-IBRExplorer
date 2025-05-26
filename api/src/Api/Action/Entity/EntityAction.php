@@ -19,6 +19,11 @@ abstract class EntityAction extends Action {
     protected function prepare(): void {
         parent::prepare();
 
+        $this->params = [
+            ...$this->params,
+            ...array_filter($this->arguments ?? [], fn($key) => ($key !== 'id'), ARRAY_FILTER_USE_KEY),
+        ];
+
         $this->entityClass ??= $this->arguments['entityClass'] ?? '';
         $this->entityService = IBRExplorerApi::getInstance()->getEntityService($this->entityClass);
         $this->entityParams = new EntityActionParams($this->entityClass, $this->params);

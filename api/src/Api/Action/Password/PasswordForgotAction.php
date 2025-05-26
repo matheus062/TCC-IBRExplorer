@@ -65,17 +65,15 @@ class PasswordForgotAction extends Action {
         ];
         $token = JWT::encode($payload, TOKEN_KEY, 'HS256');
 
-        if (!$this->sendResetPasswordEmail($user, $token)) {
-            return $this->respond(
-                'Ocorreu um erro ao enviar o email de redefinição de senha, favor tentar novamente mais tarde.',
-                StatusCode::InternalServerError
-            );
-        }
-
         if (DEBUG) {
             return $this->respond(
                 ['token' => $token],
                 StatusCode::Created
+            );
+        } elseif (!$this->sendResetPasswordEmail($user, $token)) {
+            return $this->respond(
+                'Ocorreu um erro ao enviar o email de redefinição de senha, favor tentar novamente mais tarde.',
+                StatusCode::InternalServerError
             );
         }
 
