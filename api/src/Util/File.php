@@ -4,31 +4,62 @@ declare(strict_types=1);
 
 namespace IBRExplorer\Util;
 
+use IBRExplorer\Api\Enum\ContentType;
+use IBRExplorer\Entity\Entity;
 use IBRExplorer\Entity\Enum\System\FileExt;
 use IBRExplorer\Entity\Enum\System\FileType;
 use IBRExplorer\Validator\EntityValidator;
+use RuntimeException;
 
 class File extends ValueObject {
 
     public string $name;
+    public ?string $altName;
     public FileType $type;
     public FileExt $ext;
     public ?string $data;
+    public ?string $awsS3Key;
 
     public function jsonSerialize(bool $database = false): array {
         $serialize = [
             'name' => $this->name,
             'type' => $this->type->value,
-            'ext' => $this->ext->value
+            'ext' => $this->ext->value,
+            'awsS3Key' => $this->awsS3Key,
         ];
 
-        if ($database || empty($this->data)) {
+        if (!empty($this->altName)) {
+            $serialize['altName'] = $this->altName;
+        }
+
+        if ($database) {
+            if (!empty($this->altName)) {
+                $serialize['awsS3Key'] = $this->awsS3Key;
+            }
+
             return $serialize;
         }
 
-        $serialize['data'] = $this->data;
+        if (!empty($this->data)) {
+            $serialize['data'] = $this->data;
+        }
 
         return $serialize;
+    }
+
+    public function getContentTypeByExt(): ContentType {
+        return match ($this->ext ?? null) {
+            FileExt::PDF => ContentType::Pdf,
+            FileExt::XLSX => ContentType::Xlsx,
+            FileExt::TXT => ContentType::Txt,
+            FileExt::JPEG => ContentType::Jpeg,
+            FileExt::PNG => ContentType::Png,
+            FileExt::WEBP => ContentType::Webp,
+            FileExt::MP4 => ContentType::Mp4,
+            FileExt::PCAP => ContentType::Pcap,
+            FileExt::PCAPNG => ContentType::Pcapng,
+            default => throw new RuntimeException('Extensão não especificada nas condições do match.')
+        };
     }
 
     protected function validate(): bool {
@@ -48,6 +79,10 @@ class File extends ValueObject {
 
                         break;
                     case 'ext':
+                        if ($value === 'jpg') {
+                            $value = 'jpeg';
+                        }
+
                         $value = ($value instanceof FileExt) ? $value : FileExt::tryFrom($value);
 
                         if (empty($value)) {
@@ -74,8 +109,19 @@ class File extends ValueObject {
             $this->messages['ext'] = EntityValidator::ENTITY_FIELD_REQUIRED;
         }
 
-        $this->type ??= FileType::Document;
+        $this->name ??= time() . '_' . Entity::generateKey();
+        $this->type ??= $this->getTypeByExt();
+        $this->awsS3Saved ??= false;
 
         return true;
     }
+
+    private function getTypeByExt(): FileType {
+        return match ($this->ext ?? null) {
+            FileExt::JPEG, FileExt::PNG, FileExt::WEBP => FileType::Image,
+            FileExt::MP4 => FileType::Video,
+            default => FileType::Document
+        };
+    }
+
 }
