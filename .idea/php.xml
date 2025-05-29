@@ -71,6 +71,15 @@
       <path value="$PROJECT_DIR$/api/vendor/brick/math" />
       <path value="$PROJECT_DIR$/api/vendor/php-di/invoker" />
       <path value="$PROJECT_DIR$/api/vendor/php-di/php-di" />
+      <path value="$PROJECT_DIR$/api/vendor/symfony/deprecation-contracts" />
+      <path value="$PROJECT_DIR$/api/vendor/aws/aws-crt-php" />
+      <path value="$PROJECT_DIR$/api/vendor/aws/aws-sdk-php" />
+      <path value="$PROJECT_DIR$/api/vendor/guzzlehttp/promises" />
+      <path value="$PROJECT_DIR$/api/vendor/guzzlehttp/psr7" />
+      <path value="$PROJECT_DIR$/api/vendor/guzzlehttp/guzzle" />
+      <path value="$PROJECT_DIR$/api/vendor/mtdowling/jmespath.php" />
+      <path value="$PROJECT_DIR$/api/vendor/psr/http-client" />
+      <path value="$PROJECT_DIR$/api/vendor/symfony/polyfill-mbstring" />
     </include_path>
   </component>
   <component name="PhpProjectSharedConfiguration" php_language_level="8.3" />

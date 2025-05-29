@@ -347,7 +347,7 @@ class EntityRepository {
         // TODO: Fazer a validação da existência das subEntidades no banco de dados (quando a entidade nao é filha)
 
         if ($entity->isNew()) {
-            $entity->key = Entity::generateKey();
+            $entity->key ??= Entity::generateKey();
             $entity->createdAt = new DateTime();
             $entity->createdBy = $this->db->getUser();
         } else {

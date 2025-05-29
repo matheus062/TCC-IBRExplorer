@@ -13,8 +13,8 @@ class InvalidFileDataException extends Exception {
     public readonly string $field;
 
     public function __construct(
-        string     $message = "Campo `fileData` do arquivo não informado ou inválido.",
-        StatusCode $code = StatusCode::InternalServerError,
+        string     $message = "Campo `data` do arquivo não informado ou inválido.",
+        StatusCode $code = StatusCode::BadRequest,
         ?Throwable $previous = null
     ) {
         parent::__construct($message, $code->value, $previous);
