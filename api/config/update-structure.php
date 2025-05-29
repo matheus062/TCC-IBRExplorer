@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use IBREXplorer\Database\RepositoryConfig;
-use IBREXplorer\Database\Structure\Structure;
+use IBRExplorer\Database\RepositoryConfig;
+use IBRExplorer\Database\Structure\Structure;
 
 date_default_timezone_set('America/Sao_Paulo');
 
