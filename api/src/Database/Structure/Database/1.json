@@ -79,6 +79,11 @@
             2,
             "Administrador",
             "admin@ibrexplorer.com"
+          ],
+          [
+            3,
+            "Suporte",
+            "support@ibrexplorer.com"
           ]
         ]
       },
@@ -98,8 +103,8 @@
             2
           ],
           [
-            2,
-            4
+            3,
+            3
           ]
         ]
       }
