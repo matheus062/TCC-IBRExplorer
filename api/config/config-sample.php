@@ -25,5 +25,8 @@ const SMTP_HOST = '';
 const SMTP_USER = '';
 const SMTP_PASSWORD = '';
 
-//const PUBLIC_KEY = '';
-//const PRIVATE_KEY = '';
+const AWS_ACCESS_KEY = '';
+const AWS_SECRET_KEY = '';
+const AWS_REGION = '';
+const AWS_BUCKET = '';
+

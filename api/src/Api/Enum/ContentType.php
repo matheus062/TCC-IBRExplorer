@@ -4,6 +4,7 @@ namespace IBRExplorer\Api\Enum;
 
 enum ContentType: string {
 
+    case Zip = 'application/zip';
     case Json = 'application/json';
     case Pdf = 'application/pdf';
     case Xlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';

@@ -16,7 +16,7 @@ readonly class RepositoryConfig {
 
     public function __construct(
         string $mysqlHost,
-        int    $mysqlPort,
+        int $mysqlPort,
         string $mysqlUser,
         string $mysqlPassword,
         string $mysqlDatabase,

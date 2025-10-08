@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace IBRExplorer\Validator;
 
+use IBRExplorer\Cache\Entity\EntityMetadata;
 use IBRExplorer\Entity\Entity;
 use IBRExplorer\Entity\Interface\HasParentEntities;
-use ReflectionClass;
-use ReflectionProperty;
 
 class EntityValidator {
 
@@ -31,34 +30,43 @@ class EntityValidator {
     public function isValid(Entity $entity): bool {
         $this->messages = [];
 
-        $reflection = new ReflectionClass($entity);
-        $properties = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
+        $metadata = EntityMetadata::of($entity::class);
 
-        foreach ($properties as $property) {
-            $propertyName = $property->getName();
-            $ignore = in_array($propertyName, self::IGNORE_ENTITY_FIELDS) || (
-                    $property->getType()->allowsNull() &&
-                    !in_array($propertyName, $this->requiredFields)
+        foreach ($metadata->fields as $field) {
+            $ignore = in_array($field, self::IGNORE_ENTITY_FIELDS) || (
+                    $metadata->fieldsMeta[$field]['nullable'] &&
+                    !in_array($field, $this->requiredFields)
                 );
 
-            $validateChild =
-                isset($entity->$propertyName) &&
-                !empty($entity->isEntity($propertyName)) &&
-                ($entity->$propertyName instanceof HasParentEntities) &&
-                (in_array($entity::class, $entity->$propertyName->getParentEntities()));
+            $validateChild = !empty($entity->$field) &&
+                !empty($metadata->relations[$field]['parents']) &&
+                (in_array($entity::class, $metadata->relations[$field]['parents']));
 
             if ($ignore && !$validateChild) {
+                if (empty($entity->$field) && !empty($this->currentEntity->$field)) {
+                    $entity->$field = $this->currentEntity->$field;
+                }
+
                 continue;
-            } elseif (!isset($entity->$propertyName) && !isset($this->currentEntity->$propertyName)) {
-                $this->addMessage($propertyName, self::ENTITY_FIELD_REQUIRED);
+            }
+
+            $requireField = ($metadata->relations[$field]['isMulti'] ?? false)
+                ? empty($entity->$field) && empty($this->currentEntity->$field)
+                : !isset($entity->$field) && !isset($this->currentEntity->$field);
+
+            if ($requireField) {
+                $this->addMessage($field, self::ENTITY_FIELD_REQUIRED);
             } elseif ($validateChild) {
-                $messages = $this->validateChildren($entity->$propertyName);
+                $messages = $this->validateChildren(
+                    $entity->$field,
+                    $this->currentEntity->$field ?? null
+                );
 
                 if (!empty($messages)) {
-                    $this->addMessage($propertyName, $messages);
+                    $this->addMessage($field, $messages);
                 }
             } else {
-                $entity->$propertyName ??= $this->currentEntity->$propertyName;
+                $entity->$field ??= $this->currentEntity->$field;
             }
         }
 
@@ -81,14 +89,15 @@ class EntityValidator {
 
     /**
      * @param Entity|Entity[] $children
+     * @param Entity|array|null $currentChildren
      * @return array|null
      */
-    protected function validateChildren(Entity|array $children): ?array {
+    protected function validateChildren(Entity|array $children, Entity|array|null $currentChildren): ?array {
         $messages = [];
 
         if (is_array($children)) {
             foreach ($children as $key => $child) {
-                $childMessages = $this->validateChildren($child);
+                $childMessages = $this->validateChildren($child, $currentChildren[$key] ?? null);
 
                 if (!empty($childMessages)) {
                     $messages[$key] = $childMessages;
@@ -98,19 +107,19 @@ class EntityValidator {
             return $messages;
         }
 
-        $reflection = new ReflectionClass($children);
-        $properties = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
+        $childMetadata = EntityMetadata::of($children::class);
 
-        foreach ($properties as $property) {
-            $propertyName = $property->getName();
-            $ignore = in_array($propertyName, self::IGNORE_ENTITY_FIELDS) ||
-                $property->getType()->allowsNull() ||
-                (($children instanceof HasParentEntities) && (in_array($propertyName, array_keys($children->getParentEntities()))));
+        foreach ($childMetadata->fields as $field) {
+            $ignore = in_array($field, self::IGNORE_ENTITY_FIELDS) ||
+                $childMetadata->fieldsMeta[$field]['nullable'] ||
+                (($children instanceof HasParentEntities) && in_array($field, array_keys($children->getParentEntities())));
 
             if ($ignore) {
                 continue;
-            } elseif (!isset($children->$propertyName)) {
-                $messages[$propertyName] = self::ENTITY_FIELD_REQUIRED;
+            } elseif (!isset($children->$field) && !isset($currentChildren->$field)) {
+                $messages[$field] = self::ENTITY_FIELD_REQUIRED;
+            } else {
+                $children->$field ??= $currentChildren->$field;
             }
         }
 

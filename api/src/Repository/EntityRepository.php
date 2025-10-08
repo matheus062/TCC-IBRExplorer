@@ -8,24 +8,22 @@ use DateTime;
 use Exception;
 use IBRExplorer\Api\Enum\StatusCode;
 use IBRExplorer\Api\IBRExplorerApi;
+use IBRExplorer\Cache\Entity\EntityCacheController;
+use IBRExplorer\Cache\Entity\EntityMetadata;
 use IBRExplorer\Database\MySql;
 use IBRExplorer\Entity\Address\Address;
-use IBRExplorer\Entity\Address\City;
-use IBRExplorer\Entity\Address\Country;
 use IBRExplorer\Entity\Address\State;
 use IBRExplorer\Entity\Entity;
 use IBRExplorer\Entity\Enum\System\EntityStatus;
 use IBRExplorer\Entity\Interface\HasParentEntities;
 use IBRExplorer\Entity\Interface\HasSingleRelationship;
 use IBRExplorer\Repository\Exception\DuplicateEntityException;
+use IBRExplorer\Repository\Exception\InvalidDeleteException;
 use IBRExplorer\Repository\Exception\InvalidFileDataException;
-use IBRExplorer\Storage\FileSystem\FileSystem;
+use IBRExplorer\Storage\FileSystem;
 use IBRExplorer\Util\File;
 use IBRExplorer\Util\Strings;
 use JetBrains\PhpStorm\ArrayShape;
-use ReflectionClass;
-use ReflectionException;
-use ReflectionProperty;
 use RuntimeException;
 
 class EntityRepository {
@@ -34,6 +32,7 @@ class EntityRepository {
     public readonly string $table;
 
     protected MySql $db;
+    protected EntityCacheController $cache;
 
     private bool $transactionStarted = false;
 
@@ -47,13 +46,19 @@ class EntityRepository {
         $this->entityClass = $entityClass;
         $this->table = Strings::getEntityTableName($entityClass);
         $this->db = MySql::$instance;
+        $this->cache = new EntityCacheController();
     }
 
     /**
      * @throws Exception
      */
-    public function read(int $id, array $fields = ['*']): Entity|false {
-        $row = $this->db->rowById($this->table, $id, $fields);
+    public function read(
+        int   $id,
+        array $fields = ['*'],
+        bool  $getFileData = false
+    ): Entity|false {
+        $dbFields = $this->prepareFields($fields);
+        $row = $this->db->rowById($this->table, $id, $dbFields);
 
         if ($row === false) {
             return false;
@@ -61,39 +66,62 @@ class EntityRepository {
 
         $entity = new $this->entityClass($row);
 
-        return $this->convertEntity($entity, $fields, true, true);
+        return $this->convertEntity($entity, $fields, true, $getFileData);
+    }
+
+    protected final function prepareFields(array $fields): array {
+        $meta = EntityMetadata::of($this->entityClass);
+
+        if ($fields !== ['*']) {
+            $dbFields = [];
+
+            foreach ($fields as $key => $value) {
+                $field = is_string($key) ? $key : $value;
+
+                if (!in_array($field, $meta->dbRows) || in_array($field, $dbFields)) {
+                    continue;
+                }
+
+                $dbFields[] = $field;
+            }
+
+            if (!in_array('name', $fields) && in_array('name', $meta->scalar, true)) {
+                $dbFields[] = 'name';
+            }
+
+            $required = ['id', 'key', 'entityStatus'];
+            $dbFields = array_values(array_unique(array_merge(
+                $dbFields,
+                $required
+            )));
+        } else {
+            $dbFields = $meta->dbRows;
+        }
+
+        return $dbFields;
     }
 
     /**
-     * @throws ReflectionException
      * @throws Exception
-     * @noinspection PhpMissingBreakStatementInspection
      */
     protected function convertEntity(
-        Entity|string $entity,
-        array         &$fields,
-        bool          $getChildFields = true,
-        bool          $getFileData = false,
+        Entity $entity,
+        array  &$fields,
+        bool   $getChildFields = true,
+        bool   $getFileData = false,
     ): Entity {
+        $entityMeta = EntityMetadata::of($entity::class);
+
         if (empty($fields)) {
             $fields = ['entity' => ['id', 'key', 'entityStatus']];
-        }
-
-        if (is_string($entity)) {
-            /** @var Entity $entity */
-            $entity = new $entity(0);
-        }
-
-        $reflection = new ReflectionClass($entity);
-
-        if (($fields[0] ?? '') === '*') {
+        } elseif (($fields[0] ?? '') === '*') {
             $fields = [
-                'entity' => array_map(
-                    fn(ReflectionProperty $property) => $property->getName(),
-                    $reflection->getProperties(ReflectionProperty::IS_PUBLIC)
-                )
+                ...$entityMeta->fields,
+                ...$fields
             ];
-        } elseif (!isset($fields['entity'])) {
+        }
+
+        if (!isset($fields['entity'])) {
             foreach ($fields as $index => $childField) {
                 $fields['entity'][] = is_numeric($index) ? $childField : $index;
 
@@ -103,111 +131,95 @@ class EntityRepository {
             }
         }
 
-        /** @var int $key */
-        foreach ($fields['entity'] as $key => $childField) {
-            if (!empty($childClass = $entity->isEntity($childField))) {
-                $multipleEntities = ($reflection->getProperty($childField)->getType()->getName() === 'array');
+        foreach ($fields['entity'] as $childKey => $field) {
+            $childRelation = $entityMeta->relations[$field] ?? false;
 
-                if ($getChildFields) {
-                    $fields[$childField] ??= ['*'];
-                } else {
-                    $fields[$childField] = ['id', 'key', 'entityStatus'];
-
-                    switch ($childClass) {
-                        case Address::class:
-                            $fields[$childField][] = 'state';
-                            $fields[$childField][] = 'city';
-                            $fields[$childField][] = 'street';
-                            $fields[$childField][] = 'number';
-                            $fields[$childField][] = 'neighborhood';
-                            $fields[$childField][] = 'complement';
-                            $fields[$childField][] = 'zipCode';
-                            break;
-                        case State::class:
-                            $fields[$childField][] = 'abbreviation';
-                        case Country::class:
-                        case City::class:
-                            $fields[$childField][] = 'name';
-                        default:
-                            break;
-                    }
+            if (!empty($childRelation)) {
+                if (!$getChildFields || empty($fields[$field]) || in_array($field, ['createdBy', 'updatedBy'])) {
+                    $fields[$field] = ['id', 'key', 'entityStatus'];
                 }
 
-                $childTemplate = new $childClass(0);
+                $childClass = $childRelation['class'];
+                $childRepository = IBRExplorerApi::getInstance()->getEntityRepository($childClass);
 
-                if (!$multipleEntities) {
-                    if (
-                        ($childTemplate instanceof HasSingleRelationship) &&
-                        in_array($entity::class, $childTemplate->getParentEntities())
-                    ) {
+                switch ($childClass) {
+                    case Address::class:
+                        $fields[$field] = array_merge($fields[$field], [
+                            'state', 'city', 'street', 'number', 'neighborhood', 'complement', 'zipCode'
+                        ]);
+
+                        break;
+                    case State::class:
+                        $fields[$field][] = 'abbreviation';
+
+                        break;
+                    default:
+                        break;
+                }
+
+                if (!$childRelation['isMulti']) {
+                    if ($childRelation['isSingleRelation']) {
                         $id = $entity->id;
-                    } elseif (!empty($entity->$childField)) {
-                        $id = $entity->$childField->id;
+                    } elseif (!empty($entity->$field)) {
+                        $id = $entity->$field->id;
                     } else {
                         continue;
                     }
 
-                    $childRow = $this->db->rowById(
-                        Strings::getEntityTableName($childClass),
-                        $id,
-                        $fields[$childField]['entity'] ?? $fields[$childField]
-                    );
+                    $childFields = $fields[$field]['entity'] ?? $fields[$field];
+                    $cacheKey = $childClass . ':' . $id;
 
-                    if ($childRow === false) {
-                        continue;
-                    }
-
-                    $child = new $childClass($childRow);
-
-                    if ($child->entityStatus !== EntityStatus::Active) {
-                        unset($fields[$childField]);
-                        unset($entity->$childField);
+                    if ($cached = $this->cache->retrieveEntity($cacheKey, $childFields)) {
+                        $entity->$field = $cached;
 
                         continue;
                     }
 
-                    $entity->$childField = $child;
-                    self::convertEntity($entity->$childField, $fields[$childField], false);
+                    $child = $childRepository->read($id, $childFields);
+
+                    if (($child === false) || ($child->entityStatus !== EntityStatus::Active)) {
+                        continue;
+                    }
+
+                    $this->cache->storeEntity($cacheKey, $child, $childFields);
+                    $entity->$field = $child;
 
                     continue;
                 }
 
-                $entity->$childField = [];
-                $parentField = array_search($entity::class, $childTemplate->getParentEntities());
+                $entity->$field = [];
+                $parentField = array_search($entity::class, $childRelation['parents'], true);
 
-                if (!($childTemplate instanceof HasParentEntities) || ($parentField === false)) {
+                if (empty($parentField)) {
                     continue;
                 }
 
-                $childRows = $this->db->rows(
-                    Strings::getEntityTableName($childClass),
-                    $fields[$childField]['entity'] ?? $fields[$childField],
+                $childFields = $fields[$field]['entity'] ?? $fields[$field];
+                $children = $childRepository->list(
+                    $childFields,
                     [
                         'entityStatus' => EntityStatus::Active,
                         $parentField => $entity->id
                     ],
                     orderBy: ['id'],
-                    limit: 0,
+                    limit: 0
                 );
 
-                if (empty($childRows['entities'])) {
+                if (empty($children['entities'])) {
                     continue;
                 }
 
-                foreach ($childRows['entities'] as $childRow) {
-                    $childEntity = new $childClass($childRow);
-                    self::convertEntity($childEntity, $fields[$childField], false);
-                    $entity->$childField[] = $childEntity;
+                foreach ($children['entities'] as $child) {
+                    $entity->{$field}[] = $child;
                 }
             } elseif (
                 $getFileData &&
-                !empty($valueObjectClass = $entity->isValueObject($childField)) &&
-                ($valueObjectClass === File::class) &&
-                !empty($entity->$childField)
+                in_array($field, $entityMeta->files, true) &&
+                !empty($entity->$field)
             ) {
-                FileSystem::getInstance()->readFile($entity->{$childField . 'EntityPath'}(), $entity->$childField);
-            } elseif (!$reflection->hasProperty($childField)) {
-                unset($fields['entity'][$key]);
+                FileSystem::getInstance()->readFile($entity->{$field . 'EntityPath'}(), $entity->$field);
+            } elseif (!in_array($field, $entityMeta->scalar, true)) {
+                unset($fields['entity'][$childKey]);
             }
         }
 
@@ -217,7 +229,6 @@ class EntityRepository {
     }
 
     /**
-     * @throws ReflectionException
      * @throws Exception
      */
     #[ArrayShape([
@@ -225,7 +236,7 @@ class EntityRepository {
         'total' => 'int'
     ])]
     public function list(
-        array $fields = ['id', 'key'],
+        array $fields = ['id', 'key', 'entityStatus'],
         array $where = [],
         array $orderBy = [],
         int   $limit = 15,
@@ -234,10 +245,10 @@ class EntityRepository {
     ): array {
         $list = $this->db->rows(
             $this->table,
-            $fields,
-            $where,
+            $this->prepareFields($fields),
+            $this->prepareWhere($where),
             [],
-            $orderBy,
+            $this->prepareOrderBy($orderBy),
             $limit,
             $page,
             $searchParams
@@ -256,6 +267,70 @@ class EntityRepository {
             'entities' => $entities,
             'total' => $list['total'],
         ];
+    }
+
+    protected final function prepareWhere(array $filters): array {
+        if (empty($filters)) {
+            return [];
+        }
+
+        $meta = EntityMetadata::of($this->entityClass);
+        $where = [];
+
+        foreach ($filters as $key => $value) {
+            if (str_contains($key, '.')) {
+                [$prefix, $column] = explode('.', $key, 2);
+
+                if (isset($meta->relations[$prefix])) {
+                    $table = $meta->relations[$prefix]['table'];
+                    $where[$table . '.' . $column] = $value;
+                }
+            } elseif (
+                in_array($key, $meta->scalar, true) ||
+                in_array($key, $meta->files, true) ||
+                isset($meta->relations[$key])
+            ) {
+                $where[$key] = $value;
+            }
+        }
+
+        return $where;
+    }
+
+    protected final function prepareOrderBy(array $orderBy): array {
+        if (empty($orderBy)) {
+            return [];
+        }
+
+        $meta = EntityMetadata::of($this->entityClass);
+        $clean = [];
+
+        foreach ($orderBy as $expression) {
+            if (preg_match('/\s+(ASC|DESC)$/i', $expression, $dir)) {
+                $direction = ' ' . strtoupper($dir[1]);
+                $fieldPart = substr($expression, 0, -strlen($dir[0]));
+            } else {
+                $direction = '';
+                $fieldPart = $expression;
+            }
+
+            if (str_contains($fieldPart, '.')) {
+                [$prefix, $column] = explode('.', $fieldPart, 2);
+
+                if (isset($meta->relations[$prefix])) {
+                    $table = $meta->relations[$prefix]['table'];
+                    $clean[] = $table . '.' . $column . $direction;
+                }
+            } elseif (
+                in_array($fieldPart, $meta->scalar, true) ||
+                in_array($fieldPart, $meta->files, true) ||
+                isset($meta->relations[$fieldPart])
+            ) {
+                $clean[] = $fieldPart . $direction;
+            }
+        }
+
+        return $clean;
     }
 
     /**
@@ -344,8 +419,6 @@ class EntityRepository {
         array  &$childrenToSave,
         bool   $isChild = false
     ): array {
-        // TODO: Fazer a validação da existência das subEntidades no banco de dados (quando a entidade nao é filha)
-
         if ($entity->isNew()) {
             $entity->key ??= Entity::generateKey();
             $entity->createdAt = new DateTime();
@@ -372,8 +445,11 @@ class EntityRepository {
             if (empty($childClass)) {
                 $valueObject = $entity->isValueObject($field);
 
-                if ($valueObject === File::class) {
+                if (!empty($valueObject) && is_array($value)) {
                     $data[$field] = json_encode($value);
+                }
+
+                if (is_a($valueObject, File::class, true)) {
                     $filesToSave[$field] = $entity->$field;
                 }
 
@@ -388,12 +464,14 @@ class EntityRepository {
 
                 continue;
             } elseif (!($childTemplate instanceof HasParentEntities) || !in_array($entity::class, $childTemplate->getParentEntities())) {
+                // TODO: Fazer a validação da existência das subEntidades no banco de dados (quando a entidade nao é filha)
                 $data[$field] = $value['id'] ?? null;
 
                 continue;
+            } elseif (!is_null($entity->$field)) {
+                $childrenToSave[$childClass] = $entity->$field;
             }
 
-            $childrenToSave[$childClass] = $entity->$field;
             unset($data[$field]);
         }
 
@@ -515,8 +593,27 @@ class EntityRepository {
     /**
      * @throws Exception
      */
-    public function changeStatus(Entity $entity, EntityStatus $status): bool {
-        return $this->db->updateRow($this->table, ['status' => $status], $entity->id);
+    public function changeEntityStatus(Entity $entity, EntityStatus $status): bool {
+        return $this->db->updateRow($this->table, ['entityStatus' => $status], $entity->id);
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function delete(Entity $entity): void {
+        if ($entity->isNew()) {
+            throw new InvalidDeleteException();
+        }
+
+        $success = $this->db->deleteRow($this->table, $entity->id);
+
+        if (!$success) {
+            throw new InvalidDeleteException(
+                'Ocorreu um erro desconhecido ao deletar a entidade. ' . PHP_EOL .
+                'table: ' . $this->table . PHP_EOL .
+                'id: ' . $entity->id
+            );
+        }
     }
 
 }

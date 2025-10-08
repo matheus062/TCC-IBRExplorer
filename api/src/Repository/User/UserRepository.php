@@ -6,6 +6,7 @@ namespace IBRExplorer\Repository\User;
 
 use Exception;
 use IBRExplorer\Api\IBRExplorerApi;
+use IBRExplorer\Cache\Entity\EntityMetadata;
 use IBRExplorer\Entity\Entity;
 use IBRExplorer\Entity\Enum\User\UserRoleType;
 use IBRExplorer\Entity\User\User;
@@ -41,7 +42,8 @@ class UserRepository extends EntityRepository {
     #[ArrayShape([
         'entities' => 'array',
         'total' => 'int'
-    ])] public function list(
+    ])]
+    public function list(
         array $fields = ['id', 'key'],
         array $where = [],
         array $orderBy = [],
@@ -59,12 +61,13 @@ class UserRepository extends EntityRepository {
         return parent::list($fields, $where, $orderBy, $limit, $page, $searchParams);
     }
 
-    public function read(int $id, array $fields = ['*']): Entity|false {
+    public function read(int $id, array $fields = ['*'], bool $getFileData = false): Entity|false {
         if ($id === 1) {
-            return false;
+            $fields = ['id', 'name'];
+            $getFileData = false;
         }
 
-        return parent::read($id, $fields);
+        return parent::read($id, $fields, $getFileData);
     }
 
     protected function prepareEntityDataToSave(
@@ -97,6 +100,30 @@ class UserRepository extends EntityRepository {
         }
 
         return parent::prepareEntityDataToSave($entity, $filesToSave, $childrenToSave, $isChild);
+    }
+
+
+    protected function convertEntity(
+        Entity $entity,
+        array  &$fields,
+        bool   $getChildFields = true,
+        bool   $getFileData = false
+    ): Entity {
+        /** @var User $user */
+        $user = parent::convertEntity($entity, $fields, $getChildFields, $getFileData);
+
+        if (!empty($user->roles) && empty($user->roles[0]->type)) {
+            foreach ($user->roles as $role) {
+                $type = $this->db->columnById(
+                    EntityMetadata::of(UserRole::class)->table,
+                    'type',
+                    $role->id
+                );
+                $role->setData(['type' => $type]);
+            }
+        }
+
+        return $user;
     }
 
 

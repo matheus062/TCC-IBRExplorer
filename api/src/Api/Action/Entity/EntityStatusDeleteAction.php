@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace IBRExplorer\Api\Action\Entity;
 
 use IBRExplorer\Api\Enum\StatusCode;
+use IBRExplorer\Entity\Enum\System\EntityStatus;
 use Psr\Http\Message\ResponseInterface as Response;
 
-class EntityReadAction extends EntityAction {
+class EntityStatusDeleteAction extends EntityAction {
 
     protected function run(): Response {
         $id = (int)($this->arguments['id'] ?? 0);
@@ -16,14 +17,13 @@ class EntityReadAction extends EntityAction {
             return $this->respond('O `id` da entidade é obrigatório.', StatusCode::BadRequest);
         }
 
-        $fields = $this->entityParams->fields ?: ['*'];
-        $entity = $this->entityService->getById($id, $fields, $this->entityParams->getFileData);
+        $result = $this->entityService->changeEntityStatus($id, EntityStatus::Deleted);
 
-        if ($entity === false) {
+        if ($result === false) {
             return $this->respondWithServiceError();
         }
 
-        return $this->respond($entity);
-
+        return $this->respond(['message' => 'Registro deletado com sucesso!']);
     }
+
 }

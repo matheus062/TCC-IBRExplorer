@@ -8,5 +8,6 @@ enum ActionMethod: string {
     case Post = 'post';
     case Put = 'put';
     case Delete = 'delete';
+    case Options = 'options';
 
 }

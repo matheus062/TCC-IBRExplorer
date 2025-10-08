@@ -53,7 +53,7 @@ class MySql {
     /**
      * @throws Exception
      */
-    private function execute(string|mysqli_stmt $sqlOrStatement, array $params = []): bool {
+    public function execute(string|mysqli_stmt $sqlOrStatement, array $params = []): bool {
         $this->lastStatement = is_string($sqlOrStatement)
             ? $this->prepareStatement($sqlOrStatement)
             : $sqlOrStatement;
@@ -182,7 +182,7 @@ class MySql {
      */
     public function rows(
         string $table,
-        array $fields = ['id', 'key', 'entityStatus'],
+        array $fields = ['id'],
         array  $where = [],
         array $groupBy = [],
         array  $orderBy = [],
@@ -192,61 +192,14 @@ class MySql {
     ): array {
         $params = [];
 
-        if (empty($fields)) {
-            $fields = ['id', 'key', 'entityStatus'];
-        }
-
-        foreach ($fields as $key => $field) {
-            if (!is_array($field)) {
-                continue;
-            }
-
-            $fields[] = $key;
-            unset($fields[$key]);
-        }
-
-        $fields = array_values($fields);
-
-        if ($fields[0] !== '*') {
-            if (empty($groupBy)) {
-                if (!in_array('entityStatus', $fields) && $this->columnExists($table, 'entityStatus')) {
-                    array_unshift($fields, 'entityStatus');
-                }
-
-                if (!in_array('key', $fields) && $this->columnExists($table, 'key')) {
-                    array_unshift($fields, 'key');
-                }
-
-                if (!in_array('id', $fields)) {
-                    array_unshift($fields, 'id');
-                }
-            }
-
-            $fields = array_filter(
-                $fields,
-                function ($field) use ($table) {
-                    return $this->columnExists($table, $field);
-                },
-            );
-
-            $arrayMap = array_map(
-                function ($field) use ($table) {
-                    return '`' . $this->mysqli->real_escape_string($table) . '`.`' . $this->mysqli->real_escape_string($field) . '`';
-                },
-                $fields
-            );
-            $fieldsLine = implode(', ', $arrayMap);
-        } else {
-            $fieldsLine = $table . '.*';
-        }
-
+        $fieldsLine = $this->getFieldsLine($table, $fields, $orderBy);
         $innerJoinLine = $this->getInnerJoinLine($table, $where, $orderBy, $searchParams);
         $whereLine = $this->getWhereLine($table, $where, $searchParams, $params);
         $groupByLine = $this->getGroupByLine($table, $groupBy);
         $orderByLine = $this->getOrderByLine($table, $orderBy);
         $limitLine = $this->getLimitLine($limit, $page);
 
-        $sql = 'SELECT ' . $fieldsLine . ' FROM `' . $this->mysqli->real_escape_string($table) . '` ' .
+        $sql = 'SELECT DISTINCT ' . $fieldsLine . ' FROM `' . $this->mysqli->real_escape_string($table) . '` ' .
             $innerJoinLine . ' ' .
             $whereLine . ' ' .
             $groupByLine . ' ' .
@@ -263,6 +216,46 @@ class MySql {
         ];
     }
 
+    private function getFieldsLine(
+        string $table,
+        array  $fields,
+        array  $orderBy,
+    ): string {
+        if (empty($fields)) {
+            $fields = ['id'];
+        }
+
+        if ($fields[0] !== '*') {
+            $arrayMap = array_map(
+                function ($field) use ($table) {
+                    return '`' . $this->mysqli->real_escape_string($table) . '`.`' . $this->mysqli->real_escape_string($field) . '`';
+                },
+                $fields
+            );
+
+            if (!empty($orderBy)) {
+                foreach ($orderBy as $field) {
+                    if (!in_array($field, $fields)) {
+                        $field = explode(' ', $field)[0];
+
+                        if (str_contains($field, '.')) {
+                            $fieldExplode = explode('.', $field);
+                            $arrayMap[] = '`' . $this->mysqli->real_escape_string($fieldExplode[0]) . '`.`' . $this->mysqli->real_escape_string($fieldExplode[1]) . '`';
+                        } else {
+                            $arrayMap[] = '`' . $this->mysqli->real_escape_string($table) . '`.`' . $this->mysqli->real_escape_string($field) . '`';
+                        }
+                    }
+                }
+            }
+
+            $fieldsLine = implode(', ', $arrayMap);
+        } else {
+            $fieldsLine = $table . '.*';
+        }
+
+        return $fieldsLine;
+    }
+
     /**
      * @throws Exception
      */
@@ -272,7 +265,7 @@ class MySql {
         $joinTables = array_filter([
             ...array_keys($where),
             ...array_values($orderBy),
-            // ...array_keys($searchParams)
+            ...array_keys($searchParams)
         ], fn($tableField) => str_contains($tableField, '.'));
 
         if (empty($joinTables)) {
@@ -286,12 +279,18 @@ class MySql {
                 continue;
             }
 
+            $isFromWhere = array_key_exists($tableField, $where);
+            $isFromOrder = in_array($tableField, $orderBy);
+            $isFromSearch = array_key_exists($tableField, $searchParams);
+            $joinType = ($isFromSearch && !$isFromWhere && !$isFromOrder)
+                ? 'LEFT JOIN'
+                : 'INNER JOIN';
             $query = "
-            SELECT CONCAT('`', REFERENCED_TABLE_NAME, '`.`', REFERENCED_COLUMN_NAME, '` = `', TABLE_NAME, '`.`', COLUMN_NAME, '`') AS joinCondition
-            FROM information_schema.KEY_COLUMN_USAGE
-            WHERE COLUMN_NAME NOT IN ('createdBy', 'updatedBy') AND ((TABLE_NAME = ? AND REFERENCED_TABLE_NAME = ?) OR (TABLE_NAME = ? AND REFERENCED_TABLE_NAME = ?))
-            LIMIT 1;
-        ";
+                SELECT CONCAT('`', REFERENCED_TABLE_NAME, '`.`', REFERENCED_COLUMN_NAME, '` = `', TABLE_NAME, '`.`', COLUMN_NAME, '`') AS joinCondition
+                FROM information_schema.KEY_COLUMN_USAGE
+                WHERE COLUMN_NAME NOT IN ('createdBy', 'updatedBy') AND ((TABLE_NAME = ? AND REFERENCED_TABLE_NAME = ?) OR (TABLE_NAME = ? AND REFERENCED_TABLE_NAME = ?))
+                LIMIT 1;
+            ";
             $params = [
                 $table,
                 $childTable,
@@ -309,7 +308,7 @@ class MySql {
                 continue;
             }
 
-            $innerJoinLine .= ' INNER JOIN `' . $this->mysqli->real_escape_string($childTable) . '` ON ' . $joinCondition . PHP_EOL;
+            $innerJoinLine .= $joinType . ' `' . $this->mysqli->real_escape_string($childTable) . '` ON ' . $joinCondition . PHP_EOL;
             $tablesJoined[] = $childTable;
 
         }
@@ -346,6 +345,10 @@ class MySql {
 
                                     break;
                                 case '<>':
+                                case '>':
+                                case '>=':
+                                case '<':
+                                case '<=':
                                     $value = $value['value'];
                                     $param = '?';
 
@@ -361,6 +364,9 @@ class MySql {
                             } else {
                                 $params[] = $value;
                             }
+                        } elseif (is_null($value)) {
+                            $operator = 'IS NULL';
+                            $param = '';
                         } else {
                             $operator = '=';
                             $param = '?';
@@ -391,8 +397,15 @@ class MySql {
                     function (string $field, array $terms) use ($table, &$params) {
                         $searchParams = [];
 
+                        if (str_contains($field, '.')) {
+                            [$tableToEscape, $fieldToEscape] = explode('.', $field);
+                        } else {
+                            $tableToEscape = $table;
+                            $fieldToEscape = $field;
+                        }
+
                         foreach ($terms as $term) {
-                            $searchParams[] .= '(`' . $this->mysqli->real_escape_string($table) . '`.`' . $this->mysqli->real_escape_string($field) . '` LIKE ?)';
+                            $searchParams[] .= '(`' . $this->mysqli->real_escape_string($tableToEscape) . '`.`' . $this->mysqli->real_escape_string($fieldToEscape) . '` LIKE ?)';
                             $params[] = $term;
                         }
 
@@ -597,6 +610,19 @@ class MySql {
         } catch (Exception) {
             throw new RuntimeException('Falha ao bloquear as tabelas.');
         }
+    }
+
+    public function getLastStatement(): ?mysqli_stmt {
+        return $this->lastStatement;
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function deleteRow(string $table, int $id): bool {
+        $sql = 'DELETE FROM `' . $this->mysqli->real_escape_string($table) . '` WHERE (`id` = ?);';
+
+        return $this->execute($sql, ['id' => $id]);
     }
 
 }

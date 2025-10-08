@@ -6,6 +6,7 @@ namespace IBRExplorer\Entity\Enum\System;
 
 enum FileExt: string {
 
+    case ZIP = 'zip';
     case PDF = 'pdf';
     case XLSX = 'xlsx';
     case TXT = 'txt';

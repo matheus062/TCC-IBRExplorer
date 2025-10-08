@@ -17,4 +17,12 @@ class Strings {
         return strtolower(preg_replace(['/([a-z\d])([A-Z])/', '/([^_])([A-Z][a-z])/'], '$1_$2', $string));
     }
 
+    public static function onlyNumbers(string $string): string {
+        return preg_replace('/\D+/', '', $string);
+    }
+
+    public static function onlyNumbersAndLetters(string $string): string {
+        return preg_replace('/[^a-zA-Z0-9]+/', '', $string);
+    }
+
 }

@@ -13,7 +13,7 @@ class ZipCode extends ValueObject {
     }
 
     protected function validate(): bool {
-        $this->value = preg_replace('/\D+/', '', $this->value);
+        $this->value = Strings::onlyNumbers($this->value);
 
         if (strlen($this->value) !== 8) {
             $this->messages = EntityValidator::ENTITY_FIELD_INVALID;

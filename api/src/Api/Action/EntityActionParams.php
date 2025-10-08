@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace IBRExplorer\Api\Action;
 
 use Exception;
-use IBRExplorer\Entity\Entity;
-use IBRExplorer\Util\Strings;
-use ReflectionClass;
+use IBRExplorer\Cache\Entity\EntityMetadata;
 
 readonly class EntityActionParams {
 
@@ -18,13 +16,13 @@ readonly class EntityActionParams {
     public int $page;
     public string $search;
     public array $filters;
+    public bool $getFileData;
 
-    private ReflectionClass $reflection;
+    private ?EntityMetadata $metadata;
 
     public function __construct(string $entityClass, array $params) {
         $this->entityClass = $entityClass;
-        /** @noinspection PhpUnhandledExceptionInspection */
-        $this->reflection = new ReflectionClass($this->entityClass);
+        $this->metadata = EntityMetadata::of($this->entityClass);
 
         $this->setFields($params);
         $this->setOrderBy($params);
@@ -38,18 +36,20 @@ readonly class EntityActionParams {
         if (empty($params['fields'])) {
             $this->fields = [];
             unset($params['fields']);
+            $this->getFileData = false;
 
             return;
         }
 
         $fields = preg_split('/,(?![^{]*})/', $params['fields'], flags: PREG_SPLIT_NO_EMPTY);
+        $this->getFileData = in_array('getFileData', $fields);
 
         foreach ($fields as $key => $field) {
             $fieldName = str_contains($field, '{') ?
                 substr($field, 0, strpos($field, '{'))
                 : $field;
 
-            if (!$this->reflection->hasProperty($fieldName)) {
+            if (!in_array($fieldName, $this->metadata->fields)) {
                 unset($fields[$key]);
 
                 continue;
@@ -57,7 +57,7 @@ readonly class EntityActionParams {
 
             if (str_contains($field, '{')) {
                 preg_match('/\{([^}]+)}/', $field, $subFields);
-                $subFields = $subFields[1];
+                $subFields = $subFields[1] ?? '';
                 $fields[$fieldName] = explode(',', $subFields);
                 unset($fields[$key]);
             }
@@ -84,7 +84,7 @@ readonly class EntityActionParams {
                 $field = explode(' ', $field)[0];
             }
 
-            if (!$this->reflection->hasProperty($field)) {
+            if (!in_array($field, $this->metadata->fields)) {
                 unset($orderBy[$key]);
             }
         }
@@ -133,25 +133,23 @@ readonly class EntityActionParams {
             return;
         }
 
-        /** @var Entity $entityTemplate */
-        $entityTemplate = new $this->entityClass(0);
-
         foreach ($params as $field => $value) {
             try {
                 if (str_contains($field, '{')) {
                     $mainField = explode('{', $field)[0];
-                    $childClass = $entityTemplate->isEntity($mainField);
 
-                    if (!$this->reflection->hasProperty($mainField) || empty($childClass)) {
+                    if (
+                        !in_array($mainField, $this->metadata->fields)
+                        || empty($this->metadata->relations[$mainField])
+                    ) {
                         continue;
                     }
 
                     preg_match('/\{([^}]+)}/', $field, $subFields);
-                    $childTable = Strings::getEntityTableName($childClass);
                     $childField = $subFields[1];
 
-                    $field = $childTable . '.' . $childField;
-                } elseif (!$this->reflection->hasProperty($field)) {
+                    $field = $mainField . '.' . $childField;
+                } elseif (!in_array($field, $this->metadata->fields)) {
                     continue;
                 }
 

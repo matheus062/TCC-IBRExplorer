@@ -8,11 +8,11 @@ use BackedEnum;
 use Brick\Math\BigDecimal;
 use DateTime;
 use Exception;
+use IBRExplorer\Cache\Entity\EntityMetadata;
 use IBRExplorer\Entity\Enum\System\EntityStatus;
 use IBRExplorer\Entity\User\User;
 use IBRExplorer\Util\ValueObject;
 use JsonSerializable;
-use ReflectionClass;
 use ReflectionEnum;
 use Throwable;
 
@@ -31,8 +31,9 @@ abstract class Entity implements JsonSerializable {
     // public ?WebMetadata $webMetadata;
     public null $webMetadata;
 
+    protected array $messages = [];
+
     private bool $isNew = true;
-    private array $messages = [];
 
     public function __construct(array|int|string $dataOrId) {
         if (!is_array($dataOrId)) {
@@ -57,14 +58,14 @@ abstract class Entity implements JsonSerializable {
     }
 
     public function setData(array $data): void {
-        $reflection = new ReflectionClass($this);
+        $entityMetadata = EntityMetadata::of($this::class);
 
         foreach ($data as $field => $value) {
             try {
-                if (in_array($field, self::SENSIBLE_FIELDS) || !$reflection->hasProperty($field)) {
+                if (in_array($field, self::SENSIBLE_FIELDS) || !in_array($field, $entityMetadata->fields)) {
                     continue;
                 } elseif (is_null($value)) {
-                    if ($reflection->getProperty($field)->getType()->allowsNull()) {
+                    if ($entityMetadata->fieldsMeta[$field]['nullable']) {
                         $this->$field = null;
                     }
 
@@ -74,7 +75,7 @@ abstract class Entity implements JsonSerializable {
                 } elseif ($this->isDecimal($field)) {
                     $this->$field = BigDecimal::of($value);
                 } elseif (($entityClass = $this->isEntity($field)) !== null) {
-                    if ($reflection->getProperty($field)->getType()->getName() === 'array') {
+                    if ($entityMetadata->relations[$field]['isMulti']) {
                         $this->$field = [];
 
                         foreach ($value as $index => $item) {
@@ -120,7 +121,7 @@ abstract class Entity implements JsonSerializable {
                             : $enumClass::tryFrom($value);
                     }
                 } else {
-                    $this->$field = match ($reflection->getProperty($field)->getType()->getName()) {
+                    $this->$field = match ($entityMetadata->fieldsMeta[$field]['type']) {
                         'int' => (int)$value,
                         'bool' => (bool)$value,
                         default => $value
@@ -176,13 +177,11 @@ abstract class Entity implements JsonSerializable {
 
     public function jsonSerialize(bool $database = false): array {
         $data = (array)$this;
-        $reflectionClass = new ReflectionClass($this);
+        $entityMetadata = EntityMetadata::of($this::class);
 
         foreach ($data as $field => $value) {
             try {
-                $property = $reflectionClass->getProperty($field);
-
-                if (!$property->isPublic()) {
+                if (!in_array($field, $entityMetadata->fields)) {
                     unset($data[$field]);
 
                     continue;

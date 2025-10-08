@@ -7,10 +7,12 @@ namespace IBRExplorer\Service;
 use Exception;
 use IBRExplorer\Api\Enum\StatusCode;
 use IBRExplorer\Api\IBRExplorerApi;
+use IBRExplorer\Cache\Entity\EntityMetadata;
 use IBRExplorer\Entity\Entity;
 use IBRExplorer\Entity\Enum\System\EntityStatus;
 use IBRExplorer\Repository\EntityRepository;
 use IBRExplorer\Repository\Exception\DuplicateEntityException;
+use IBRExplorer\Service\Interface\HasProcessAfterSave;
 use IBRExplorer\Service\Interface\HasProcessBeforeSave;
 use IBRExplorer\Service\Interface\HasSearchParams;
 use IBRExplorer\Validator\EntityValidator;
@@ -35,82 +37,74 @@ class EntityService {
             unset($data['id']);
             /** @var Entity $entity */
             $entity = new $this->repository->entityClass($data);
+            unset($data);
         } else {
-            $entity = $data;
+            $entity = clone $data;
+            unset($data);
             $entity->setId(0);
         }
 
-        if (!$this->validator->isValid($entity)) {
-            return $this->setError($this->validator->getMessages(), StatusCode::InvalidEntity);
-        }
-
-        try {
-            if ($this instanceof HasProcessBeforeSave) {
-                $this->processBeforeSave($entity);
-            }
-
-            $this->repository->save($entity);
-        } catch (DuplicateEntityException $e) {
-            return $this->setError([
-                'error' => $e->getMessage(),
-                'field' => $e->field
-            ], $e->getCode());
-        } catch (Exception $e) {
-            return $this->setError($e->getMessage(), $e->getCode());
-        }
-
-        return $entity->id;
-    }
-
-    public function getCode(): StatusCode {
-        return $this->code ?? StatusCode::Ok;
-    }
-
-    public function update(int $id, Entity|array $data): bool {
-        $this->setError([]);
-        $currentEntity = $this->getById($id);
-
-        if ($currentEntity === false) {
+        if (!$this->validateEntity($entity)) {
             return false;
         }
 
-        if (is_array($data)) {
-            $data['id'] = $id;
-            /** @var Entity $entity */
-            $entity = new $this->repository->entityClass($data);
-        } else {
-            $entity = clone $data;
-            $entity->setId($id);
-        }
+        return $this->saveEntity($entity)
+            ? $entity->id
+            : false;
+    }
 
-        unset($data);
-        $this->validator->setCurrentEntity($currentEntity);
+    protected final function validateEntity(Entity $entity): bool {
+        if (!$entity->isNew()) {
+            $meta = EntityMetadata::of($this->repository->entityClass);
+            $fields = array_merge($meta->scalar, $meta->files);
+
+            foreach ($meta->relations as $relName => $relInfo) {
+                if (in_array($relName, ['createdBy', 'updatedBy'])) {
+                    continue;
+                }
+
+                $childMeta = EntityMetadata::of($relInfo['class']);
+                $fields[$relName] = $childMeta->fields;
+            }
+
+            $currentEntity = $this->getById($entity->id, $fields);
+
+            if ($currentEntity === false) {
+                return false;
+            }
+
+            $this->validator->setCurrentEntity($currentEntity);
+        }
 
         if (!$this->validator->isValid($entity)) {
             return $this->setError($this->validator->getMessages(), StatusCode::InvalidEntity);
         }
 
-        try {
-            if ($this instanceof HasProcessBeforeSave) {
-                $this->processBeforeSave($entity);
-            }
-
-            return $this->repository->save($entity);
-        } catch (DuplicateEntityException $e) {
-            return $this->setError([
-                'error' => $e->getMessage(),
-                'field' => $e->field
-            ], $e->getCode());
-        } catch (Exception $e) {
-            return $this->setError($e->getMessage(), $e->getCode());
-        }
+        return true;
     }
 
-    public function getById(int $id, array $fields = ['*']): Entity|false {
+    public function getById(int $id, array $fields = ['*'], bool $getFileData = false): Entity|false {
         $this->setError([]);
 
         try {
-            $entity = $this->repository->read($id, $fields);
+            $meta = EntityMetadata::of($this->repository->entityClass);
+
+            if (($fields[0] ?? '') !== '*') {
+                $isIncluded = array_filter(
+                    array_merge(
+                        array_keys($fields),
+                        array_values($fields)
+                    ),
+                    fn($value) => is_string($value)
+                );
+
+                $fields = [
+                    ...$fields,
+                    ...$isIncluded,
+                    ...array_values(array_diff($meta->fields, $isIncluded))
+                ];
+            }
+            $entity = $this->repository->read($id, $fields, $getFileData);
         } catch (Exception $e) {
             return $this->setError($e->getMessage(), $e->getCode());
         }
@@ -120,6 +114,54 @@ class EntityService {
         }
 
         return $entity;
+    }
+
+    public function getCode(): StatusCode {
+        return $this->code ?? StatusCode::Ok;
+    }
+
+    protected final function saveEntity(Entity $entity): bool {
+        try {
+            if ($this instanceof HasProcessBeforeSave) {
+                $this->processBeforeSave($entity);
+            }
+
+            $saved = $this->repository->save($entity);
+
+            if ($saved && ($this instanceof HasProcessAfterSave)) {
+                $this->processAfterSave($entity);
+            }
+        } catch (DuplicateEntityException $e) {
+            return $this->setError([
+                'error' => $e->getMessage(),
+                'field' => $e->field
+            ], $e->getCode());
+        } catch (Exception $e) {
+            return $this->setError($e->getMessage(), $e->getCode());
+        }
+
+        return $saved;
+    }
+
+    public function update(int $id, Entity|array $data): bool {
+        $this->setError([]);
+
+        if (is_array($data)) {
+            $data['id'] = $id;
+            /** @var Entity $entity */
+            $entity = new $this->repository->entityClass($data);
+            unset($data);
+        } else {
+            $entity = clone $data;
+            unset($data);
+            $entity->setId($id);
+        }
+
+        if (!$this->validateEntity($entity)) {
+            return false;
+        }
+
+        return $this->saveEntity($entity);
     }
 
     public function getByKey(string $key, array $fields = ['*']): Entity|false {
@@ -158,7 +200,7 @@ class EntityService {
         }
     }
 
-    public function changeStatus(int $id, EntityStatus $status): bool {
+    public function changeEntityStatus(int $id, EntityStatus $status): bool {
         $this->setError([]);
         $entity = $this->getById($id, ['id', 'entityStatus']);
 
@@ -167,11 +209,14 @@ class EntityService {
         } elseif ($entity->entityStatus === $status) {
             return true;
         } elseif ($entity->entityStatus === EntityStatus::Deleted) {
-            $this->setError('Entidades excluídas não podem ter seu status alterado.', StatusCode::Forbidden);
+            return $this->setError(
+                'Entidades excluídas não podem ter seu status alterado.',
+                StatusCode::Forbidden
+            );
         }
 
         try {
-            return $this->repository->changeStatus($entity, $status);
+            return $this->repository->changeEntityStatus($entity, $status);
         } catch (Exception $e) {
             return $this->setError($e->getMessage(), $e->getCode());
         }
@@ -188,6 +233,35 @@ class EntityService {
             : $code;
 
         return false;
+    }
+
+    public function getErrorAsString(): string {
+        if (!is_array($this->error)) {
+            return $this->error;
+        }
+
+        $lines = [];
+        array_walk_recursive($this->error, function ($value, $key) use (&$lines) {
+            $lines[] = "$key: $value";
+        });
+
+        return implode(PHP_EOL, $lines);
+    }
+
+    protected function delete(int $id): bool {
+        $entity = $this->getById($id, ['id']);
+
+        if ($entity === false) {
+            return false;
+        }
+
+        try {
+            $this->repository->delete($entity);
+        } catch (Exception $e) {
+            return $this->setError($e->getMessage(), $e->getCode());
+        }
+
+        return true;
     }
 
 }

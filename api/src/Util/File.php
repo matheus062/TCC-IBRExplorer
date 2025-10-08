@@ -18,6 +18,7 @@ class File extends ValueObject {
     public FileType $type;
     public FileExt $ext;
     public ?string $data;
+    public bool $s3Store;
     public ?string $awsS3Key;
 
     public function jsonSerialize(bool $database = false): array {
@@ -25,14 +26,20 @@ class File extends ValueObject {
             'name' => $this->name,
             'type' => $this->type->value,
             'ext' => $this->ext->value,
-            'awsS3Key' => $this->awsS3Key,
+            'contentType' => $this->getContentTypeByExt()
         ];
 
         if (!empty($this->altName)) {
             $serialize['altName'] = $this->altName;
         }
 
+        if (!empty($this->awsS3Key)) {
+            $serialize['awsS3Key'] = $this->awsS3Key;
+        }
+
         if ($database) {
+            $serialize['s3Store'] = $this->s3Store;
+
             if (!empty($this->altName)) {
                 $serialize['awsS3Key'] = $this->awsS3Key;
             }
@@ -49,6 +56,7 @@ class File extends ValueObject {
 
     public function getContentTypeByExt(): ContentType {
         return match ($this->ext ?? null) {
+            FileExt::ZIP => ContentType::Zip,
             FileExt::PDF => ContentType::Pdf,
             FileExt::XLSX => ContentType::Xlsx,
             FileExt::TXT => ContentType::Txt,
@@ -101,19 +109,15 @@ class File extends ValueObject {
             $this->value = [];
         }
 
-        if (empty($this->name)) {
-            $this->messages['name'] = EntityValidator::ENTITY_FIELD_REQUIRED;
-        }
-
         if (empty($this->ext)) {
             $this->messages['ext'] = EntityValidator::ENTITY_FIELD_REQUIRED;
         }
 
         $this->name ??= time() . '_' . Entity::generateKey();
         $this->type ??= $this->getTypeByExt();
-        $this->awsS3Saved ??= false;
+        $this->s3Store ??= false;
 
-        return true;
+        return empty($this->messages);
     }
 
     private function getTypeByExt(): FileType {

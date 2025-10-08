@@ -11,6 +11,12 @@ abstract class ValueObject implements JsonSerializable {
     protected array|string $value;
     protected array|string $messages = [];
 
+    public function __construct(array|string|null $value = null) {
+        if (!empty($value)) {
+            $this->setValue($value);
+        }
+    }
+
     public function getValue(): array|string {
         return $this->value;
     }
@@ -21,8 +27,6 @@ abstract class ValueObject implements JsonSerializable {
         return $this->validate();
     }
 
-    abstract protected function validate(): bool;
-
     public function getMessages(): array|string {
         return $this->messages;
     }
@@ -30,5 +34,7 @@ abstract class ValueObject implements JsonSerializable {
     public function __toString(): string {
         return $this->jsonSerialize();
     }
+
+    abstract protected function validate(): bool;
 
 }

@@ -18,7 +18,7 @@ class EntityUpdateAction extends EntityAction {
             return $this->respond('O corpo da requisição é obrigatório.', StatusCode::BadRequest);
         } elseif (!empty($this->arguments)) {
             foreach ($this->arguments as $key => $argument) {
-                unset($this->body[$key]); // Remove do corpo para não alterar possíveis Parents
+                unset($this->body[$key]); // Remove do corpo para não alterar o Parent
             }
         }
 

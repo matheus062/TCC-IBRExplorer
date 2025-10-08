@@ -8,12 +8,10 @@ use Exception;
 use IBRExplorer\Api\Enum\StatusCode;
 use Throwable;
 
-class InvalidFileDataException extends Exception {
-
-    public readonly string $field;
+class InvalidDeleteException extends Exception {
 
     public function __construct(
-        string     $message = "Campo `fileData` do arquivo não informado ou inválido.",
+        string     $message = "Somente entidades com o campo `id` informado podem ser deletadas.",
         StatusCode $code = StatusCode::InternalServerError,
         ?Throwable $previous = null
     ) {

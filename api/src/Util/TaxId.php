@@ -13,7 +13,7 @@ class TaxId extends ValueObject {
     }
 
     protected function validate(): bool {
-        $this->value = preg_replace('/\D+/', '', $this->value);
+        $this->value = Strings::onlyNumbers($this->value);
 
         if (strlen($this->value) == 11) {
             $this->validateNaturalTaxId($this->value);
