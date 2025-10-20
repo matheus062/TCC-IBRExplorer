@@ -542,6 +542,7 @@ class EntityRepository {
                         foreach ($parentEntities as $field => $class) {
                             if (in_array($class, $grandParent)) {
                                 $parentField = array_search($class, $grandParent);
+                                $child->$field = $entity->$parentField ?? null;
                                 $data[$field] = $entity->$parentField->id ?? null;
                             }
                         }
