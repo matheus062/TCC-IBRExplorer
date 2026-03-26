@@ -20,6 +20,7 @@ use IBRExplorer\Entity\Interface\HasSingleRelationship;
 use IBRExplorer\Repository\Exception\DuplicateEntityException;
 use IBRExplorer\Repository\Exception\InvalidDeleteException;
 use IBRExplorer\Repository\Exception\InvalidFileDataException;
+use IBRExplorer\Repository\Exception\ParentFieldNullException;
 use IBRExplorer\Storage\FileSystem;
 use IBRExplorer\Util\File;
 use IBRExplorer\Util\Strings;
@@ -542,8 +543,24 @@ class EntityRepository {
                         foreach ($parentEntities as $field => $class) {
                             if (in_array($class, $grandParent)) {
                                 $parentField = array_search($class, $grandParent);
-                                $child->$field = $entity->$parentField ?? null;
-                                $data[$field] = $entity->$parentField->id ?? null;
+
+                                if (empty($entity->$parentField)) {
+                                    $parentId = $this->db->columnById(
+                                        EntityMetadata::of($entity::class)->table,
+                                        $parentField,
+                                        $entity->id
+                                    );
+
+                                    if (empty($parentId)) {
+                                        throw new ParentFieldNullException($entity::class, $parentField);
+                                    }
+
+
+                                    $entity->setData([$parentField => $parentId]);
+                                }
+
+                                $child->$field = $entity->$parentField;
+                                $data[$field] = $entity->$parentField->id;
                             }
                         }
                     }

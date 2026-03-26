@@ -33,8 +33,9 @@ class EntityValidator {
         $metadata = EntityMetadata::of($entity::class);
 
         foreach ($metadata->fields as $field) {
+            $isNullable = $metadata->fieldsMeta[$field]['nullable'] ?? false;
             $ignore = in_array($field, self::IGNORE_ENTITY_FIELDS) || (
-                    $metadata->fieldsMeta[$field]['nullable'] &&
+                    $isNullable &&
                     !in_array($field, $this->requiredFields)
                 );
 
@@ -43,7 +44,10 @@ class EntityValidator {
                 (in_array($entity::class, $metadata->relations[$field]['parents']));
 
             if ($ignore && !$validateChild) {
-                if (empty($entity->$field) && !empty($this->currentEntity->$field)) {
+                $fieldIsDefined = array_key_exists($field, get_object_vars($entity));
+                $isValueNull = $fieldIsDefined && ($entity->$field === null);
+
+                if (!$fieldIsDefined && !$isValueNull && !empty($this->currentEntity->$field)) {
                     $entity->$field = $this->currentEntity->$field;
                 }
 

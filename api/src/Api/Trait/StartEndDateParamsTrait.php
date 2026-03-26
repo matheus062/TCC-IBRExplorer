@@ -10,7 +10,7 @@ trait StartEndDateParamsTrait {
     public DateTime $startDate;
     public DateTime $endDate;
 
-    protected function getStartEndDate(): true|string {
+    protected function getStartEndDate(int $dayLimits = null): true|string {
         $startDate = $this->body['startDate'] ?? $this->params['startDate'] ?? null;
         $endDate = $this->body['endDate'] ?? $this->params['endDate'] ?? 'now';
 
@@ -31,6 +31,14 @@ trait StartEndDateParamsTrait {
 
         $this->startDate = $startDate;
         $this->endDate = $endDate;
+
+        if (!empty($dayLimits)) {
+            $diffDays = $this->startDate->diff($this->endDate)->days;
+
+            if ($diffDays > $dayLimits) {
+                return 'O intervalo entre as datas não pode ser superior a ' . $dayLimits . ' dia(s).';
+            }
+        }
 
         return true;
     }

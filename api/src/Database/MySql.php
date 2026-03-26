@@ -59,19 +59,21 @@ class MySql {
             : $sqlOrStatement;
 
         if (!empty($params)) {
-            $types = implode('', array_map(function ($param) {
-                return match ($param) {
-                    is_int($param) => 'i',
-                    is_float($param) => 'd',
-                    default => 's'
-                };
-            }, $params));
-
             foreach ($params as $key => $param) {
                 if ($param instanceof BackedEnum) {
                     $params[$key] = $param->value;
                 }
             }
+
+            $types = implode('', array_map(function ($param) {
+                if (is_int($param) || is_bool($param)) {
+                    return 'i';
+                } elseif (is_float($param)) {
+                    return 'd';
+                } else {
+                    return 's';
+                }
+            }, $params));
 
             $this->lastStatement->bind_param($types, ...array_values($params));
         }
@@ -130,21 +132,7 @@ class MySql {
      * @throws Exception
      */
     public function columnById(string $table, string $column, int $id): mixed {
-        if (!$this->columnExists($table, $column)) {
-            throw new Exception('Coluna não existente na tabela.');
-        }
-
         return $this->column($table, $column, ['id' => $id]);
-    }
-
-    /**
-     * @throws Exception
-     */
-    public function columnExists(string $table, string $column): bool {
-        // TODO: Fazer cache dos campos já consultados, caso não encontre, consulte no banco.
-        $this->execute('SHOW COLUMNS FROM `' . $this->mysqli->real_escape_string($table) . '` LIKE \'' . $this->mysqli->real_escape_string($column) . '\'');
-
-        return ($this->lastStatement->get_result()->num_rows > 0);
     }
 
     /**
@@ -163,6 +151,16 @@ class MySql {
 
         return $row[$column] ?? null;
 
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function columnExists(string $table, string $column): bool {
+        // TODO: Fazer cache dos campos já consultados, caso não encontre, consulte no banco.
+        $this->execute('SHOW COLUMNS FROM `' . $this->mysqli->real_escape_string($table) . '` LIKE \'' . $this->mysqli->real_escape_string($column) . '\'');
+
+        return ($this->lastStatement->get_result()->num_rows > 0);
     }
 
     /**

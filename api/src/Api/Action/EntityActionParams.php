@@ -153,7 +153,10 @@ readonly class EntityActionParams {
                     continue;
                 }
 
-                if (str_contains($value, ',')) {
+
+                if (str_starts_with($value, 'operator:')) {
+                    $value = $this->parseOperatorFilterValue($value);
+                } elseif (str_contains($value, ',')) {
                     $value = explode(',', $value);
                 } elseif (str_contains($value, ';')) {
                     $value = [
@@ -169,6 +172,76 @@ readonly class EntityActionParams {
         }
 
         $this->filters = $filters;
+    }
+
+    private function parseOperatorFilterValue(string $raw): ?array {
+        $raw = trim($raw);
+
+        // aceita "operator[...]" com ou sem prefixo "operator:"
+        if (str_starts_with($raw, 'operator:')) {
+            $raw = trim(substr($raw, strlen('operator:')));
+        }
+
+        if (!str_starts_with($raw, 'operator[') || !preg_match('/^operator\[([^]]+)](?:;(.*))?$/', $raw, $m)) {
+            return null;
+        }
+
+        $operator = strtoupper(trim($m[1] ?? ''));
+
+        $allowed = [
+            'IS NULL',
+            'IS NOT NULL',
+            'IN',
+            'NOT IN',
+            'BETWEEN',
+            '<>',
+            '>',
+            '>=',
+            '<',
+            '<='
+        ];
+
+        if (!in_array($operator, $allowed, true)) {
+            return null;
+        } elseif ($operator === 'IS NULL') {
+            return null;
+        }
+
+        if ($operator === 'IS NOT NULL') {
+            return [
+                'operator' => $operator,
+                'values' => []
+            ];
+        }
+
+        $tail = trim($m[2] ?? '');
+        $valuesRaw = '';
+
+        if ($tail !== '' && preg_match('/values:(.*)$/', $tail, $vm)) {
+            $valuesRaw = trim($vm[1] ?? '');
+        }
+
+        if ($valuesRaw === '' || $valuesRaw === '[]') {
+            $values = [];
+        } else {
+            // remove colchetes caso venham (ex: [1,2,3])
+            if (str_starts_with($valuesRaw, '[') && str_ends_with($valuesRaw, ']')) {
+                $valuesRaw = trim(substr($valuesRaw, 1, -1));
+            }
+
+            if (str_contains($valuesRaw, ';')) {
+                $values = array_values(array_filter(array_map('trim', explode(';', $valuesRaw)), static fn($v) => $v !== ''));
+            } elseif (str_contains($valuesRaw, ',')) {
+                $values = array_values(array_filter(array_map('trim', explode(',', $valuesRaw)), static fn($v) => $v !== ''));
+            } else {
+                $values = [trim($valuesRaw)];
+            }
+        }
+
+        return [
+            'operator' => $operator,
+            'values' => $values
+        ];
     }
 
 }

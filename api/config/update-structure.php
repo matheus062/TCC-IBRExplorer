@@ -21,6 +21,10 @@ $repositoryConfig = new RepositoryConfig(
 );
 
 try {
+    if (function_exists('apcu_clear_cache')) {
+        apcu_clear_cache();
+    }
+
     (new Structure($repositoryConfig))->updateStart();
 
     die('Atualização bem sucedida.');
