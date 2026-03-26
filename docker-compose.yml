@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: php_fpm
+    volumes:
+      - ./api:/var/www/api
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx_server
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./api:/var/www/api
+      - ./app:/var/www/app
+      - ./docker/nginx:/etc/nginx/conf.d
+      - ./docker/nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - app
+    networks:
+      - app-network
+
+  db:
+    image: mysql:8.0
+    container_name: mysql_db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: tcc
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - app-network
+
+networks:
+  app-network:
+
+volumes:
+  db_data:
