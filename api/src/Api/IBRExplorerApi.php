@@ -10,9 +10,13 @@ use IBRExplorer\Api\Action\Authorization\CreateAuthTokenAction;
 use IBRExplorer\Api\Action\Entity\EntityCreateAction;
 use IBRExplorer\Api\Action\Entity\EntityListAction;
 use IBRExplorer\Api\Action\Entity\EntityReadAction;
+use IBRExplorer\Api\Action\Entity\EntityStatusDeleteAction;
 use IBRExplorer\Api\Action\Entity\EntityUpdateAction;
 use IBRExplorer\Api\Action\Password\PasswordChangeAction;
 use IBRExplorer\Api\Action\Password\PasswordForgotAction;
+use IBRExplorer\Api\Action\PcapFile\PcapFileStartUploadAction;
+use IBRExplorer\Api\Action\PcapFile\PcapFileUploadChunkAction;
+use IBRExplorer\Api\Action\System\OptionsAction;
 use IBRExplorer\Api\Enum\ActionMethod;
 use IBRExplorer\Api\Middleware\Authorization\Authorization;
 use IBRExplorer\Api\Middleware\ErrorHandler\ErrorHandler;
@@ -24,6 +28,7 @@ use IBRExplorer\Entity\Address\City;
 use IBRExplorer\Entity\Address\Country;
 use IBRExplorer\Entity\Address\State;
 use IBRExplorer\Entity\Entity;
+use IBRExplorer\Entity\PcapFile\PcapFile;
 use IBRExplorer\Entity\User\User;
 use IBRExplorer\Repository\Address\AddressRepository;
 use IBRExplorer\Repository\EntityRepository;
@@ -31,7 +36,9 @@ use IBRExplorer\Repository\User\UserRepository;
 use IBRExplorer\Service\Address\CityService;
 use IBRExplorer\Service\Address\CountryService;
 use IBRExplorer\Service\EntityService;
-use IBRExplorer\Storage\FileSystem\FileSystem;
+use IBRExplorer\Service\Pcap\PcapFileService;
+use IBRExplorer\Storage\AwsS3\Config\AwsS3FileSystemConfig;
+use IBRExplorer\Storage\FileSystem;
 use Slim\App;
 use Slim\Factory\AppFactory;
 use Slim\Routing\RouteCollectorProxy;
@@ -64,18 +71,21 @@ class IBRExplorerApi {
         $this->app->add(new CorsMiddleware([
             'origin' => ['*'],
             'methods' => ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-            'headers.allow' => ['Accept', 'Authorization', 'Content-Type'],
+            'headers.allow' => ['Accept', 'Authorization', 'Content-Type']
         ]));
         $this->app->add(ErrorHandler::class);
     }
 
     private function setRoutes(): void {
-        $this->app->options('/{routes:.+}', function ($request, $response) {
-            return $response
-                ->withHeader('Access-Control-Allow-Origin', '*')
-                ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-                ->withHeader('Access-Control-Allow-Headers', 'Accept, Authorization, Content-Type');
-        });
+        $this->setSystemRoutes();
+        $this->setAddressRoutes();
+        $this->setUsersRoutes();
+        $this->setPcapRoutes();
+    }
+
+    private function setSystemRoutes(): void {
+        // Options
+        $this->setEndpoint(ActionMethod::Options, '/{routes:.+}', OptionsAction::class);
 
         $this->app->post('/auth', CreateAuthTokenAction::class);
 
@@ -83,9 +93,24 @@ class IBRExplorerApi {
             $password->post('/forgot', PasswordForgotAction::class);
             $password->put('/change', PasswordChangeAction::class);
         });
+    }
 
-        $this->setAddressRoutes();
-        $this->setUsersRoutes();
+    private function setEndpoint(
+        ActionMethod    $method,
+        string          $pattern,
+        string|callable $action,
+        ?string         $permissionMiddleware = null,
+        ?array          $arguments = null
+    ): void {
+        $endpoint = $this->app->{$method->value}($pattern, $action);
+
+        if (!empty($arguments)) {
+            $endpoint->setArguments($arguments);
+        }
+
+        if (!empty($permissionMiddleware)) {
+            $endpoint->add($permissionMiddleware);
+        }
     }
 
     private function setAddressRoutes(): void {
@@ -102,8 +127,8 @@ class IBRExplorerApi {
      * @param string|null $readAction
      * @param string|null $listAction
      * @param string|null $permissionMiddleware
+     * @param bool $allowDelete
      * @return void
-     * @noinspection PhpSameParameterValueInspection
      */
     private function entityCrudRoute(
         string  $endpoint,
@@ -112,7 +137,8 @@ class IBRExplorerApi {
         ?string $updateAction = EntityUpdateAction::class,
         ?string $readAction = EntityReadAction::class,
         ?string $listAction = EntityListAction::class,
-        ?string $permissionMiddleware = null
+        ?string $permissionMiddleware = null,
+        bool    $allowDelete = false
     ): void {
         $endpoints = [
             [ActionMethod::Get, $endpoint, $listAction],
@@ -120,30 +146,17 @@ class IBRExplorerApi {
             [ActionMethod::Put, $endpoint . '/{id}', $updateAction],
             [ActionMethod::Get, $endpoint . '/{id}', $readAction]
         ];
+
+        if ($allowDelete) {
+            $endpoints[] = [ActionMethod::Delete, $endpoint . '/{id}', EntityStatusDeleteAction::class];
+        }
+
         $arguments = ['entityClass' => $entityClass];
 
         foreach ($endpoints as [$method, $endpoint, $entityClass]) {
             if (!empty($entityClass)) {
-                $this->setEndpoint($method, $endpoint, $entityClass, $arguments, $permissionMiddleware);
+                $this->setEndpoint($method, $endpoint, $entityClass, $permissionMiddleware, $arguments);
             }
-        }
-    }
-
-    private function setEndpoint(
-        ActionMethod $method,
-        string       $pattern,
-        string       $action,
-        ?array       $arguments = null,
-        ?string      $permissionMiddleware = null
-    ): void {
-        $endpoint = $this->app->{$method->value}($pattern, $action);
-
-        if (!empty($arguments)) {
-            $endpoint->setArguments($arguments);
-        }
-
-        if (!empty($permissionMiddleware)) {
-            $endpoint->add($permissionMiddleware);
         }
     }
 
@@ -155,10 +168,34 @@ class IBRExplorerApi {
         );
     }
 
+    private function setPcapRoutes(): void {
+        // TODO: Criar o permission do Pcap
+        /*
+         * POST - Gerar solicitação
+         * PUT - Enviar pedaço de arquivo
+         * */
+
+        // Integrações RESTful e jobs assíncronos: vão querer saber como você estrutura background workers (sidekiq, queue systems, cron jobs, message brokers tipo RabbitMQ, Kafka, SQS).
+
+
+        $this->entityCrudRoute(
+            '/pcap/file',
+            PcapFile::class,
+            createAction: PcapFileStartUploadAction::class,
+            updateAction: PcapFileUploadChunkAction::class,
+        );
+    }
+
     private function startFileSystem(): void {
         FileSystem::getInstance(
-            __DIR__ . '/../../../files/',
+            __DIR__ . '/../../files/',
             __DIR__ . '/../../assets/',
+            new AwsS3FileSystemConfig(
+                AWS_REGION,
+                AWS_BUCKET,
+                AWS_ACCESS_KEY,
+                AWS_SECRET_KEY
+            )
         );
     }
 
@@ -197,6 +234,7 @@ class IBRExplorerApi {
         $service = match ($entityClassName) {
             Country::class => new CountryService(),
             City::class => new CityService(),
+            PcapFile::class => new PcapFileService(),
             default => new EntityService($entityClassName)
         };
         $this->container->set($key, $service);

@@ -1,0 +1,63 @@
+[
+  {
+    "type": "table",
+    "name": "pcap",
+    "columns": [
+      {
+        "name": "startTimestamp",
+        "type": "timestamp"
+      },
+      {
+        "name": "endTimestamp",
+        "type": "timestamp"
+      },
+      {
+        "name": "packetsTotal",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "protocols",
+        "type": "json",
+        "null": true
+      },
+      {
+        "name": "checksum",
+        "type": "varchar(30)",
+        "null": true
+      }
+    ]
+  },
+  {
+    "type": "table",
+    "name": "pcap_file",
+    "columns": [
+      {
+        "name": "status",
+        "type": "int",
+        "default": 1
+      },
+      {
+        "name": "file",
+        "type": "json",
+        "null": true
+      },
+      {
+        "name": "fileSize",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "processed",
+        "type": "decimal(3,2)",
+        "default": 0
+      },
+      {
+        "name": "pcap",
+        "parentTable": "pcap",
+        "unique": true,
+        "null": true
+      }
+    ]
+  }
+]
