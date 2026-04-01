@@ -1,38 +1,46 @@
-version: '3.8'
-
 services:
-  app:
-    build: .
-    container_name: php_fpm
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - app-network
+
+  php:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: api_php
     volumes:
       - ./api:/var/www/api
+      - vendor_data:/var/www/api/vendor
+    depends_on:
+      - mysql
+    env_file: .env
     networks:
       - app-network
 
   nginx:
-    image: nginx:latest
-    container_name: nginx_server
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+    container_name: web_nginx
     ports:
       - "80:80"
-      - "443:443"
+    env_file: .env
     volumes:
       - ./api:/var/www/api
       - ./app:/var/www/app
-      - ./docker/nginx:/etc/nginx/conf.d
-      - ./docker/nginx/ssl:/etc/nginx/ssl
+      - node_modules_data:/var/www/app/node_modules
+      - dist_data:/var/www/app/dist
     depends_on:
-      - app
-    networks:
-      - app-network
-
-  db:
-    image: mysql:8.0
-    container_name: mysql_db
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: tcc
-    volumes:
-      - db_data:/var/lib/mysql
+      - php
     networks:
       - app-network
 
@@ -40,4 +48,7 @@ networks:
   app-network:
 
 volumes:
-  db_data:
+  mysql_data:
+  vendor_data:
+  node_modules_data:
+  dist_data:

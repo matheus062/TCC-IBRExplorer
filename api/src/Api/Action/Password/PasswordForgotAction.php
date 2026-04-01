@@ -111,7 +111,7 @@ class PasswordForgotAction extends Action {
                     <h2 style="color: #007bff; font-size: 24px; margin-bottom: 20px;">Olá!</h2>
                     <p style="font-size: 16px; color: #555;">Você solicitou a redefinição de sua senha.</p>
                     <p style="font-size: 16px; color: #555;">Para redefinir sua senha, clique no botão abaixo:</p>
-                    <a href="' . APP_URL . 'password-reset?token=' . $token . '" 
+                    <a href="' . APP_EMAIL_URL . 'password-reset?token=' . $token . '" 
                        style="display: inline-block; padding: 12px 24px; margin: 20px 0; color: #ffffff; background-color: #007bff; text-decoration: none; font-weight: bold; border-radius: 4px;">
                        Redefinir Senha
                     </a>
@@ -122,7 +122,7 @@ class PasswordForgotAction extends Action {
             </div>
             </body>            
             ';
-            $mail->AltBody = 'Link: ' . APP_URL . 'password-reset?token=' . $token;
+            $mail->AltBody = 'Link: ' . APP_EMAIL_URL . 'password-reset?token=' . $token;
 
             return $mail->send();
         } catch (Exception) {
