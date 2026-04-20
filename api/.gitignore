@@ -2,3 +2,5 @@
 /vendor/
 /files
 todo.txt
+composer.lock
+/config/local-configuration.php

@@ -9,7 +9,7 @@ use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use IBRExplorer\Api\Enum\StatusCode;
 use IBRExplorer\Api\Trait\RouteRespondTrait;
-use IBRExplorer\Database\MySql;
+use IBRExplorer\Database\PostgreSQL;
 use IBRExplorer\Entity\Enum\System\EntityStatus;
 use IBRExplorer\Entity\Enum\User\UserRoleType;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -48,8 +48,8 @@ class Authorization implements MiddlewareInterface {
                 return $this->respond('Token de autenticação inválido.', StatusCode::Unauthorized);
             }
 
-            MySql::$instance->initUser($decode->uid);
-            $user = MySql::$instance->getUser();
+            PostgreSQL::$instance->initUser($decode->uid);
+            $user = PostgreSQL::$instance->getUser();
 
             if (empty($user)) {
                 return $this->respond('Ocorreu um erro ao iniciar banco de dados.', StatusCode::InternalServerError);

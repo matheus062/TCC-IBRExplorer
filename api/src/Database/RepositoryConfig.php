@@ -6,28 +6,28 @@ namespace IBRExplorer\Database;
 
 readonly class RepositoryConfig {
 
-    public string $mysqlHost;
-    public int $mysqlPort;
-    public string $mysqlUser;
-    public string $mysqlPassword;
-    public string $mysqlDatabase;
+    public string $host;
+    public int $port;
+    public string $user;
+    public string $password;
+    public string $database;
     public string $structurePath;
     public string $filesPath;
 
     public function __construct(
-        string $mysqlHost,
-        int $mysqlPort,
-        string $mysqlUser,
-        string $mysqlPassword,
-        string $mysqlDatabase,
+        string $host,
+        int    $port,
+        string $user,
+        string $password,
+        string $database,
         string $structurePath = '',
         string $filesPath = ''
     ) {
-        $this->mysqlHost = $mysqlHost;
-        $this->mysqlPort = $mysqlPort;
-        $this->mysqlUser = $mysqlUser;
-        $this->mysqlPassword = $mysqlPassword;
-        $this->mysqlDatabase = $mysqlDatabase;
+        $this->host = $host;
+        $this->port = $port;
+        $this->user = $user;
+        $this->password = $password;
+        $this->database = $database;
         $this->structurePath = $structurePath;
         $this->filesPath = $filesPath;
     }

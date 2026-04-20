@@ -9,7 +9,7 @@ use Firebase\JWT\JWT;
 use IBRExplorer\Api\Action\Action;
 use IBRExplorer\Api\Enum\StatusCode;
 use IBRExplorer\Api\IBRExplorerApi;
-use IBRExplorer\Database\MySql;
+use IBRExplorer\Database\PostgreSQL;
 use IBRExplorer\Entity\Enum\System\EntityStatus;
 use IBRExplorer\Entity\User\User;
 use IBRExplorer\Repository\User\UserRepository;
@@ -80,7 +80,7 @@ class CreateAuthTokenAction extends Action {
 
     private function validatePassword(string $email, string $passwordSent): bool {
         try {
-            $passwordHash = MySql::$instance->column('user', 'password', ['email' => $email]);
+            $passwordHash = PostgreSQL::$instance->column('user', 'password', ['email' => $email]);
 
             if (empty($passwordHash)) {
                 return false;

@@ -5,23 +5,23 @@ declare(strict_types=1);
 namespace IBRExplorer\Database\Structure;
 
 use Exception;
-use IBRExplorer\Database\MySql;
+use IBRExplorer\Database\PostgreSQL;
 use IBRExplorer\Database\RepositoryConfig;
 use IBRExplorer\Entity\Entity;
 
 class Structure {
 
-    private MySql $mySql;
+    private PostgreSQL $db;
 
     public function __construct(RepositoryConfig $config) {
-        $this->mySql = new MySql($config);
+        $this->db = new PostgreSQL($config);
     }
 
     /**
      * @throws Exception
      */
     public function updateStart(): void {
-        $this->mySql->initDatabase();
+        $this->db->initDatabase();
 
         if ($this->isNewDatabase()) {
             $this->createSystemConfigTable();
@@ -36,24 +36,25 @@ class Structure {
      * @throws Exception
      */
     private function isNewDatabase(): bool {
-        return !$this->mySql->tableExists('system_config');
+        return !$this->db->tableExists('system_config');
     }
 
     /**
      * @throws Exception
      */
     private function createSystemConfigTable(): void {
-        $this->mySql->prepareStatement("
-            CREATE TABLE system_config (
-                id INT PRIMARY KEY AUTO_INCREMENT,
-                dbVersion INT DEFAULT 0 COMMENT 'Versão atual do banco de dados.',
-                updatePid INT NULL COMMENT 'PID do processo de atualização.',
-                lastUpdate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Data da última atualização.',
-                backupPid INT NULL COMMENT 'PID do processo de backup.',
-                lastBackup TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Data do último backup.'
-            );
-        ")->execute();
-        $this->mySql->prepareStatement('INSERT INTO system_config () VALUES ();')->execute();
+        $this->db->prepareStatement('
+        CREATE TABLE system_config (
+            "id" SERIAL PRIMARY KEY,
+            "dbVersion" INT DEFAULT 0,
+            "updatePid" INT NULL,
+            "lastUpdate" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "backupPid" INT NULL,
+            "lastBackup" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+    ')->execute();
+
+        $this->db->prepareStatement("INSERT INTO system_config DEFAULT VALUES;")->execute();
     }
 
     /**
@@ -66,7 +67,7 @@ class Structure {
             $row['lastUpdate'] = date('Y-m-d H:i:s');
         }
 
-        $this->mySql->updateRow('system_config', $row, 1);
+        $this->db->updateRow('system_config', $row, 1);
     }
 
     /**
@@ -85,7 +86,7 @@ class Structure {
      */
     private function updateApply(string $updateFile): void {
         $contents = json_decode(
-            file_get_contents($this->mySql->getConfig()->structurePath . $updateFile), true
+            file_get_contents($this->db->getConfig()->structurePath . $updateFile), true
         );
 
         foreach ($contents as $updateContent) {
@@ -103,7 +104,7 @@ class Structure {
 
                     break;
                 case 'sql':
-                    $this->mySql->prepareStatement($updateContent['sql'])->execute();
+                    $this->db->prepareStatement($updateContent['sql'])->execute();
 
                     break;
                 default:
@@ -117,62 +118,79 @@ class Structure {
      */
     private function createTable(array $create): void {
         $table = $create['name'];
+
         $sql = '
-            CREATE TABLE `' . $table . '` (
-                `id` INT AUTO_INCREMENT PRIMARY KEY,
-                `entityStatus` TINYINT DEFAULT 1 NOT NULL CHECK (`entityStatus` IN (1, 2, 3)),
-                `key` VARCHAR(16) UNIQUE NOT NULL,
-                `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                `createdBy` INT NOT NULL,
-                `updatedAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                `updatedBy` INT NOT NULL,
-                `webMetadata` JSON NULL,
-                `internalNotes` TEXT NULL';
+            CREATE TABLE "' . $table . '" (
+                "id" SERIAL PRIMARY KEY,
+                "entityStatus" SMALLINT DEFAULT 1 NOT NULL CHECK ("entityStatus" IN (1,2,3)),
+                "key" VARCHAR(16) UNIQUE NOT NULL,
+                "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                "createdBy" INT NOT NULL,
+                "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                "updatedBy" INT NOT NULL,
+                "webMetadata" JSON NULL,
+                "internalNotes" TEXT NULL
+        ';
+
         $foreignKeys = [
-            'CONSTRAINT fk_' . $table . '_user_createdBy FOREIGN KEY (`createdBy`) REFERENCES `user`(`id`)',
-            'CONSTRAINT fk_' . $table . '_user_updatedBy FOREIGN KEY (`updatedBy`) REFERENCES `user`(`id`)'
+            'CONSTRAINT fk_' . $table . '_user_createdBy FOREIGN KEY ("createdBy") REFERENCES "user"("id")',
+            'CONSTRAINT fk_' . $table . '_user_updatedBy FOREIGN KEY ("updatedBy") REFERENCES "user"("id")'
         ];
 
         if (!empty($create['columns'])) {
-            $columns = [];
-
             foreach ($create['columns'] as $column) {
-                $columns[] = ",\n" . $this->processColumn($table, $column, $foreignKeys);
-            }
+                $sql .= ",\n" . $this->processColumn($table, $column, $foreignKeys);
 
-            $sql .= implode('', $columns);
+
+            }
         }
 
-        if (!empty($create['indexes'])) {
-            $indexes = [];
-
-            foreach ($create['indexes'] as $index) {
-                $indexes[] = ",\n" . $this->processIndex($table, $index);
-            }
-
-            $sql .= implode('', $indexes);
-        }
 
         if (!empty($foreignKeys)) {
-            $sql .= implode('', array_map(fn($key) => ",\n" . $key, $foreignKeys));
+            $sql .= implode('', array_map(fn($key) => ",\n$key", $foreignKeys));
         }
 
         $sql .= "\n);";
-        $this->mySql->prepareStatement($sql)->execute();
+
+        $indexStatements = [];
+
+        if (!empty($create['indexes'])) {
+            foreach ($create['indexes'] as $index) {
+                $indexStatements[] = $this->processIndex($table, $index);
+            }
+        }
+
+        $this->db->prepareStatement($sql)->execute();
+
+        if (!empty($indexStatements)) {
+            foreach ($indexStatements as $indexSql) {
+                $this->db->prepareStatement($indexSql)->execute();
+            }
+        }
     }
 
     private function processColumn(string $table, array $column, array &$foreignKeys): string {
-        $columnType = isset($column['parentTable']) ? 'int' : $column['type'];
-        $sql = '`' . $column['name'] . '` ' . strtoupper($columnType);
-        $sql .= isset($column['default']) ? ' DEFAULT ' . $column['default'] : '';
+        $columnType = isset($column['parentTable']) ? 'INT' : strtoupper($column['type']);
+
+        if ($columnType === 'TINYINT') {
+            $columnType = 'SMALLINT';
+        }
+
+        $sql = '"' . $column['name'] . '" ' . $columnType;
+
+        if (isset($column['default'])) {
+            $sql .= ' DEFAULT ' . $column['default'];
+        }
+
         $sql .= isset($column['null']) ? ' NULL' : ' NOT NULL';
-        $sql .= isset($column['unique']) ? ' UNIQUE' : '';
-        $sql .= isset($column['comment']) ? ' COMMENT \'' . addslashes($column['comment']) . '\'' : '';
-        $sql .= ' ' . ($column['position'] ?? '');
+
+        if (isset($column['unique'])) {
+            $sql .= ' UNIQUE';
+        }
 
         if (!empty($column['parentTable'])) {
-            $constraint = 'CONSTRAINT ' . 'fk_' . $table . '_' . $column['parentTable'] . '_' . $column['name'];
-            $foreignKey = 'FOREIGN KEY (`' . $column['name'] . '`) REFERENCES `' . $column['parentTable'] . '`(`id`)';
+            $constraint = 'CONSTRAINT fk_' . $table . '_' . $column['parentTable'] . '_' . $column['name'];
+            $foreignKey = 'FOREIGN KEY (' . $column['name'] . ') REFERENCES ' . $column['parentTable'] . '(id)';
             $foreignKeys[] = $constraint . ' ' . $foreignKey;
         }
 
@@ -180,8 +198,10 @@ class Structure {
     }
 
     private function processIndex(string $table, array $index): string {
+
         $indexType = strtoupper($index['type']);
-        $columns = '(`' . implode('`, `', $index['columns']) . '`)';
+        $columns = '"' . implode('", "', $index['columns']) . '"';
+        $columns = '(' . $columns . ')';
 
         if (empty($index['identifier'])) {
             $prefix = ($indexType === 'UNIQUE') ? 'uc' : 'ix';
@@ -190,9 +210,11 @@ class Structure {
             $identifier = $index['identifier'];
         }
 
-        return ($indexType === 'INDEX')
-            ? $indexType . ' ' . $identifier . ' ' . $columns
-            : 'CONSTRAINT ' . $identifier . ' ' . $indexType . ' ' . $columns;
+        if ($indexType === 'UNIQUE') {
+            return 'CREATE UNIQUE INDEX "' . $identifier . '" ON "' . $table . '" ' . $columns . ';';
+        }
+
+        return 'CREATE INDEX "' . $identifier . '" ON "' . $table . '" ' . $columns . ';';
     }
 
     /**
@@ -201,42 +223,34 @@ class Structure {
     private function alterTable(mixed $alterTable): void {
         $table = $alterTable['table'];
 
-        if (!$this->mySql->tableExists($table)) {
+        if (!$this->db->tableExists($table)) {
             throw new Exception('Tabela não encontrada: ' . $table);
         }
 
-        $sql = 'ALTER TABLE `' . $table . '` ';
+        $sql = 'ALTER TABLE "' . $table . '" ';
         $foreignKeys = [];
+        $columns = [];
 
         if (!empty($alterTable['columns'])) {
-            $columns = [];
-
             foreach ($alterTable['columns'] as $column) {
                 $columns[] = "ADD COLUMN " . $this->processColumn($table, $column, $foreignKeys);
             }
-
-            $sql .= implode(",\n", $columns);
         }
 
-        if (!empty($alterTable['indexes'])) {
-            $indexes = [];
-
-            foreach ($alterTable['indexes'] as $index) {
-                $indexes[] = 'ADD ' . $this->processIndex($table, $index);
-            }
-
-            if (!empty($columns)) {
-                $sql .= ",\n";
-            }
-
-            $sql .= implode(",\n", $indexes);
-        }
+        $sql .= implode(",\n", $columns);
 
         if (!empty($foreignKeys)) {
-            $sql .= implode('', array_map(fn($key) => ",\n ADD " . $key, $foreignKeys));
+            $sql .= implode('', array_map(fn($key) => ",\n ADD $key", $foreignKeys));
         }
 
-        $this->mySql->prepareStatement($sql)->execute();
+        $this->db->prepareStatement($sql)->execute();
+
+        if (!empty($alterTable['indexes'])) {
+            foreach ($alterTable['indexes'] as $index) {
+                $indexSql = $this->processIndex($table, $index);
+                $this->db->prepareStatement($indexSql)->execute();
+            }
+        }
     }
 
     /**
@@ -249,7 +263,7 @@ class Structure {
                 $row['key'] = Entity::generateKey();
                 $row['createdBy'] ??= 1;
                 $row['updatedBy'] ??= 1;
-                $this->mySql->insertRow($entity['table'], $row);
+                $this->db->insertRow($entity['table'], $row);
             }
         }
     }
@@ -258,18 +272,18 @@ class Structure {
      * @throws Exception
      */
     private function setDbVersion(int $version): void {
-        $this->mySql->updateRow('system_config', ['dbVersion' => $version], 1);
+        $this->db->updateRow('system_config', ['dbVersion' => $version], 1);
     }
 
     /**
      * @throws Exception
      */
     private function getUpdateFiles(): array {
-        if (!is_dir($this->mySql->getConfig()->structurePath)) {
+        if (!is_dir($this->db->getConfig()->structurePath)) {
             throw new Exception('Diretório da estrutura do banco não existente.');
         }
 
-        $files = glob($this->mySql->getConfig()->structurePath . '*.json');
+        $files = glob($this->db->getConfig()->structurePath . '*.json');
         $files = array_map(function ($file) {
             $file = explode('/', $file);
             return array_pop($file);
@@ -285,7 +299,7 @@ class Structure {
             throw new Exception('Não foi possível encontrar arquivos de estrutura do banco.');
         }
 
-        $currentVersion = $this->mySql->columnById('system_config', 'dbVersion', 1);
+        $currentVersion = $this->db->columnById('system_config', 'dbVersion', 1);
         $updates = array_filter($files, function ($value) use ($currentVersion) {
             $version = (int)explode('.', $value)[0];
 

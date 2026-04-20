@@ -7,7 +7,7 @@ namespace IBRExplorer\Api\Middleware\Permission;
 use IBRExplorer\Api\Enum\ActionMethod;
 use IBRExplorer\Api\Enum\StatusCode;
 use IBRExplorer\Api\Trait\RouteRespondTrait;
-use IBRExplorer\Database\MySql;
+use IBRExplorer\Database\PostgreSQL;
 use IBRExplorer\Entity\Enum\User\UserRoleType;
 use IBRExplorer\Entity\User\User;
 use Psr\Http\Message\ResponseInterface;
@@ -33,7 +33,7 @@ abstract class Permission implements MiddlewareInterface {
     }
 
     private function checkUserPermissions(): true|ResponseInterface {
-        $currentUser = MySql::$instance->getUser();
+        $currentUser = PostgreSQL::$instance->getUser();
 
         if (empty($currentUser)) {
             return $this->respond('Usuário não autenticado. Por favor, refaça o login.', StatusCode::Unauthorized);

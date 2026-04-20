@@ -2,22 +2,20 @@
 
 set -e
 
-echo "Waiting for MySQL..."
+echo "Waiting for PostgreSQL..."
 
 until php -r "
-new mysqli(
-    getenv('MYSQL_HOST'),
-    getenv('MYSQL_USER'),
-    getenv('MYSQL_PASSWORD'),
-    getenv('MYSQL_DATABASE'),
-    getenv('MYSQL_PORT')
+new PDO(
+    'pgsql:host=' . getenv('POSTGRES_HOST') . ';port=' . getenv('POSTGRES_PORT') . ';dbname=' . getenv('POSTGRES_DATABASE'),
+    getenv('POSTGRES_USER'),
+    getenv('POSTGRES_PASSWORD')
 );
 "; do
-  echo "MySQL not ready yet..."
+  echo "PostgreSQL not ready yet..."
   sleep 2
 done
 
-echo "MySQL is ready."
+echo "PostgreSQL is ready."
 
 cd /var/www/api
 

@@ -81,6 +81,10 @@
       <path value="$PROJECT_DIR$/api/vendor/tuupola/cors-middleware" />
       <path value="$PROJECT_DIR$/api/vendor/tuupola/callable-handler" />
       <path value="$PROJECT_DIR$/api/vendor/tuupola/http-factory" />
+      <path value="$PROJECT_DIR$/api/vendor/phpoption/phpoption" />
+      <path value="$PROJECT_DIR$/api/vendor/graham-campbell/result-type" />
+      <path value="$PROJECT_DIR$/api/vendor/symfony/polyfill-ctype" />
+      <path value="$PROJECT_DIR$/api/vendor/vlucas/phpdotenv" />
     </include_path>
   </component>
   <component name="PhpProjectSharedConfiguration" php_language_level="8.3" />

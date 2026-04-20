@@ -1,14 +1,13 @@
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: mysql_db
+  postgres:
+    image: postgres:16
+    container_name: postgres_db
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+      POSTGRES_USER: ${POSTGRES_USER}
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - app-network
 
@@ -21,7 +20,7 @@ services:
       - ./api:/var/www/api
       - vendor_data:/var/www/api/vendor
     depends_on:
-      - mysql
+      - postgres
     env_file: .env
     networks:
       - app-network
@@ -48,7 +47,7 @@ networks:
   app-network:
 
 volumes:
-  mysql_data:
+  postgres_data:
   vendor_data:
   node_modules_data:
   dist_data:

@@ -6,7 +6,7 @@ namespace IBRExplorer\Service\Pcap;
 
 use Exception;
 use IBRExplorer\Api\Enum\StatusCode;
-use IBRExplorer\Database\MySql;
+use IBRExplorer\Database\PostgreSQL;
 use IBRExplorer\Entity\Entity;
 use IBRExplorer\Entity\PcapFile\PcapFile;
 use IBRExplorer\Service\EntityService;
@@ -61,7 +61,7 @@ class PcapFileService extends EntityService implements HasProcessBeforeSave {
         string $fileExt
     ): array|false {
         $pcapFile = new PcapFile([
-            'createdBy' => MySql::$instance->getUser()->id,
+            'createdBy' => PostgreSQL::$instance->getUser()->id,
             'file' => [
                 'name' => $fileName,
                 'ext' => $fileExt,

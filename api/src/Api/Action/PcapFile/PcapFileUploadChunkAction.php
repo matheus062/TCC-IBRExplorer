@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace IBRExplorer\Api\Action\PcapFile;
 
 use IBRExplorer\Api\Enum\StatusCode;
-use IBRExplorer\Database\MySql;
+use IBRExplorer\Database\PostgreSQL;
 use IBRExplorer\Entity\PcapFile\PcapFile;
 use Psr\Http\Message\ResponseInterface as Response;
 
@@ -18,7 +18,7 @@ class PcapFileUploadChunkAction extends PcapFileAction {
 
         if ($file === false) {
             return $this->respondWithServiceError();
-        } elseif (MySql::$instance->getUser()->id !== $file->createdBy->id) {
+        } elseif (PostgreSQL::$instance->getUser()->id !== $file->createdBy->id) {
             return $this->respond(
                 'Usuário sem permissão de carregar `chunk`.', StatusCode::Forbidden
             );

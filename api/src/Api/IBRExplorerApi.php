@@ -21,7 +21,7 @@ use IBRExplorer\Api\Enum\ActionMethod;
 use IBRExplorer\Api\Middleware\Authorization\Authorization;
 use IBRExplorer\Api\Middleware\ErrorHandler\ErrorHandler;
 use IBRExplorer\Api\Middleware\Permission\UsersPermission;
-use IBRExplorer\Database\MySql;
+use IBRExplorer\Database\PostgreSQL;
 use IBRExplorer\Database\RepositoryConfig;
 use IBRExplorer\Entity\Address\Address;
 use IBRExplorer\Entity\Address\City;
@@ -201,18 +201,20 @@ class IBRExplorerApi {
 
     private function startDbConnection(): void {
         $repositoryConfig = new RepositoryConfig(
-            MYSQL_HOST,
-            MYSQL_PORT,
-            MYSQL_USER,
-            MYSQL_PASSWORD,
-            MYSQL_DATABASE,
+            POSTGRES_HOST,
+            POSTGRES_PORT,
+            POSTGRES_USER,
+            POSTGRES_PASSWORD,
+            POSTGRES_DATABASE,
             __DIR__ . '/../src/Database/Structure/Database/',
             __DIR__ . '/../files/'
         );
-        $mysql = new MySql($repositoryConfig);
-        $mysql->initDatabase();
+        $database = new PostgreSQL($repositoryConfig);
+        $database->initDatabase();
+
+        // TODO: Revisar sobre essa parte de initUser antes de continuar
         /** @noinspection PhpUnhandledExceptionInspection */
-        $mysql->initUser(1);
+        $database->initUser(1);
     }
 
     /**

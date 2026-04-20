@@ -10,7 +10,7 @@ use IBRExplorer\Api\Enum\StatusCode;
 use IBRExplorer\Api\IBRExplorerApi;
 use IBRExplorer\Cache\Entity\EntityCacheController;
 use IBRExplorer\Cache\Entity\EntityMetadata;
-use IBRExplorer\Database\MySql;
+use IBRExplorer\Database\PostgreSQL;
 use IBRExplorer\Entity\Address\Address;
 use IBRExplorer\Entity\Address\State;
 use IBRExplorer\Entity\Entity;
@@ -32,7 +32,7 @@ class EntityRepository {
     public readonly string $entityClass;
     public readonly string $table;
 
-    protected MySql $db;
+    protected PostgreSQL $db;
     protected EntityCacheController $cache;
 
     private bool $transactionStarted = false;
@@ -46,7 +46,7 @@ class EntityRepository {
 
         $this->entityClass = $entityClass;
         $this->table = Strings::getEntityTableName($entityClass);
-        $this->db = MySql::$instance;
+        $this->db = PostgreSQL::$instance;
         $this->cache = new EntityCacheController();
     }
 
