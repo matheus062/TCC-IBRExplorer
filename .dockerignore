@@ -1,0 +1,7 @@
+.git
+.idea
+.DS_Store
+
+api/vendor
+app/node_modules
+app/dist

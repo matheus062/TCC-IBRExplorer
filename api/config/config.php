@@ -2,20 +2,23 @@
 
 declare(strict_types=1);
 
-define("DEBUG", getenv('DEBUG'));
+$localConfig = __DIR__ . '/local-configuration.php';
 
-define("MYSQL_HOST", getenv('MYSQL_HOST'));
-define("MYSQL_PORT", (int)getenv('MYSQL_PORT'));
-define("MYSQL_USER", getenv('MYSQL_USER'));
-define("MYSQL_PASSWORD", getenv('MYSQL_PASSWORD'));
-define("MYSQL_DATABASE", getenv('MYSQL_DATABASE'));
+if (file_exists($localConfig)) {
+    require_once $localConfig;
+}
+
+define("DEBUG", (bool)getenv('DEBUG'));
+
+define("POSTGRES_HOST", getenv('POSTGRES_HOST'));
+define("POSTGRES_PORT", (int)getenv('POSTGRES_PORT'));
+define("POSTGRES_USER", getenv('POSTGRES_USER'));
+define("POSTGRES_PASSWORD", getenv('POSTGRES_PASSWORD'));
+define("POSTGRES_DATABASE", getenv('POSTGRES_DATABASE'));
 
 define("TOKEN_KEY", getenv('TOKEN_KEY'));
 define("TOKEN_ISSUER", getenv('TOKEN_ISSUER'));
 define("PASSWORD_PEPPER", getenv('PASSWORD_PEPPER'));
-
-define("APP_URL", getenv('APP_URL'));
-define("API_URL", getenv('API_URL'));
 
 define("APP_EMAIL_URL", getenv('APP_EMAIL_URL'));
 

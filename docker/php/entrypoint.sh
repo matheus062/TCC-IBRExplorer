@@ -19,11 +19,33 @@ echo "PostgreSQL is ready."
 
 cd /var/www/api
 
-echo "Installing composer dependencies..."
-composer install --no-interaction
+LOCKFILE="composer.lock"
+CHECKSUM_FILE="vendor/.composer.lock.cksum"
+
+mkdir -p vendor
+
+CURRENT_CHECKSUM=""
+
+if [ -f "$LOCKFILE" ]; then
+  CURRENT_CHECKSUM="$(cksum "$LOCKFILE" | awk '{print $1":"$2}')"
+fi
+
+SAVED_CHECKSUM=""
+
+if [ -f "$CHECKSUM_FILE" ]; then
+  SAVED_CHECKSUM="$(cat "$CHECKSUM_FILE")"
+fi
+
+if [ ! -f vendor/autoload.php ] || [ "$CURRENT_CHECKSUM" != "$SAVED_CHECKSUM" ]; then
+  echo "Installing composer dependencies..."
+  composer install --no-interaction --prefer-dist
+  printf '%s' "$CURRENT_CHECKSUM" > "$CHECKSUM_FILE"
+else
+  echo "Composer dependencies already installed."
+fi
 
 echo "Updating database structure..."
-php config/update-structure.php || true
+php config/update-structure.php
 
 echo "Starting PHP-FPM..."
 exec php-fpm -F
