@@ -2,7 +2,7 @@
   <configuration default="false" name="UpdateStructure" type="PhpLocalRunConfigurationType" factoryName="PHP Console" path="$PROJECT_DIR$/api/config/update-structure.php">
     <CommandLine>
       <PhpTestInterpreterSettings>
-        <option name="interpreterName" value="PHP 8.3" />
+        <option name="interpreterName" value="PHP (docker)" />
       </PhpTestInterpreterSettings>
     </CommandLine>
     <method v="2" />
