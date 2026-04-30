@@ -1,0 +1,128 @@
+[
+  {
+    "type": "table",
+    "name": "pcap_header",
+    "columns": [
+      {
+        "name": "pcap",
+        "parentTable": "pcap",
+        "unique": true
+      },
+      {
+        "name": "magicNumber",
+        "type": "bigint"
+      },
+      {
+        "name": "headerType",
+        "type": "varchar(20)",
+        "default": "'unknown'"
+      },
+      {
+        "name": "versionMajor",
+        "type": "smallint"
+      },
+      {
+        "name": "versionMinor",
+        "type": "smallint"
+      },
+      {
+        "name": "linkType",
+        "type": "int"
+      },
+      {
+        "name": "snapLen",
+        "type": "int"
+      }
+    ]
+  },
+  {
+    "type": "table",
+    "name": "pcap_flow",
+    "columns": [
+      {
+        "name": "pcap",
+        "parentTable": "pcap"
+      },
+      {
+        "name": "flowKey",
+        "type": "varchar(120)"
+      },
+      {
+        "name": "srcIp",
+        "type": "varchar(45)"
+      },
+      {
+        "name": "dstIp",
+        "type": "varchar(45)"
+      },
+      {
+        "name": "srcPort",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "dstPort",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "protocol",
+        "type": "smallint"
+      },
+      {
+        "name": "packetCount",
+        "type": "int",
+        "default": 0
+      },
+      {
+        "name": "bytesTotal",
+        "type": "bigint",
+        "default": 0
+      },
+      {
+        "name": "startTimestamp",
+        "type": "timestamp"
+      },
+      {
+        "name": "endTimestamp",
+        "type": "timestamp"
+      }
+    ],
+    "indexes": [
+      {
+        "type": "unique",
+        "identifier": "uc_pcap_flow_pcap_flow_key",
+        "columns": [
+          "pcap",
+          "flowKey"
+        ]
+      },
+      {
+        "type": "index",
+        "identifier": "ix_pcap_flow_pcap_start_timestamp",
+        "columns": [
+          "pcap",
+          "startTimestamp"
+        ]
+      },
+      {
+        "type": "index",
+        "columns": [
+          "srcIp"
+        ]
+      },
+      {
+        "type": "index",
+        "columns": [
+          "dstIp"
+        ]
+      },
+      {
+        "type": "index",
+        "columns": [
+          "protocol"
+        ]
+      }
+    ]
+  }
+]

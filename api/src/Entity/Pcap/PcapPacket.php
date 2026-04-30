@@ -4,40 +4,46 @@ declare(strict_types=1);
 
 namespace IBRExplorer\Entity\Pcap;
 
+use DateTime;
+use IBRExplorer\Entity\Enum\Pcap\PcapProtocolType;
+
 class PcapPacket extends PcapChild {
 
-    // PCAP Packet
-    //  - Timestamp segundos (32 bits)
-    //  - Timestamp Micro ou Nano (32 bits)
-    //  - Tamanho do pacote (32 bits)
-    //  - Tamanho do pacote original (32 bits)
-    //  - Payload (Ethernet header, IP Packet e Checksum...)
-
-    public float $timestamp;
+    public DateTime $timestamp;
+    public int $packetNumber;
+    public int $offset;
     public int $capturedLen;
     public int $originalLen;
-    public string $srcIp;
-    public string $dstIp;
+    public ?PcapFlow $flow;
+    public ?string $srcIp;
+    public ?string $dstIp;
     public ?int $srcPort = null;
     public ?int $dstPort = null;
-    public int $protocol;
-    public int $ttl;
-    public int $ipLength;
+    public ?PcapProtocolType $protocol = null;
+    public ?int $ipVersion = null;
+    public ?int $ttl = null;
+    public ?int $ipLength = null;
+    public ?int $payloadSize = null;
     public ?int $tcpFlags = null;
     public ?int $icmpType = null;
     public ?int $icmpCode = null;
 
+    public function isEntity(string $field): ?string {
+        return match ($field) {
+            'flow' => PcapFlow::class,
+            default => parent::isEntity($field)
+        };
+    }
 
-    //frame.time_epoch ou frame.time: timestamp do pacote (UTC) – permite filtros por intervalo.
-    //ip.src e ip.dst: endereços IP de origem e destino.
-    //ip.len: comprimento total do datagrama IP.
-    //ip.ttl: TTL (Time To Live) do pacote – útil para analisar origem ou detectar varreduras.
-    //ip.proto: protocolo IP (6=TCP,17=UDP,1=ICMP etc.).
-    //tcp.srcport, tcp.dstport: portas TCP de origem/destino (se aplicável).
-    //tcp.flags: flags TCP (valor inteiro ou hexa); ou separá-las em booleanos (SYN, ACK, etc.).
-    //udp.srcport, udp.dstport: portas UDP (se aplicável).
-    //icmp.type, icmp.code: tipo e código ICMP (se for protocolo ICMP).
+    protected function isDateTime(string $field): bool {
+        return ($field === 'timestamp') || parent::isDateTime($field);
+    }
 
-    // Implementar o isEntity...
+    protected function isEnum(string $field): ?string {
+        return match ($field) {
+            'protocol' => PcapProtocolType::class,
+            default => parent::isEnum($field)
+        };
+    }
 
 }

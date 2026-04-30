@@ -25,6 +25,16 @@
         "name": "checksum",
         "type": "varchar(30)",
         "null": true
+      },
+      {
+        "name": "capturedBytes",
+        "type": "bigint",
+        "null": true
+      },
+      {
+        "name": "flowsTotal",
+        "type": "int",
+        "null": true
       }
     ]
   },
@@ -53,10 +63,52 @@
         "default": 0
       },
       {
-        "name": "pcap",
-        "parentTable": "pcap",
-        "unique": true,
+        "name": "visibility",
+        "type": "smallint",
+        "default": 1
+      },
+      {
+        "name": "uploadedAt",
+        "type": "timestamp",
         "null": true
+      },
+      {
+        "name": "processStartedAt",
+        "type": "timestamp",
+        "null": true
+      },
+      {
+        "name": "processFinishedAt",
+        "type": "timestamp",
+        "null": true
+      },
+      {
+        "name": "processAttempts",
+        "type": "smallint",
+        "default": 0
+      },
+      {
+        "name": "processError",
+        "type": "text",
+        "null": true
+      }
+    ],
+    "indexes": [
+      {
+        "type": "index",
+        "identifier": "ix_pcap_file_status_created_at",
+        "columns": [
+          "status",
+          "createdAt"
+        ]
+      },
+      {
+        "type": "index",
+        "identifier": "ix_pcap_file_created_by_status",
+        "columns": [
+          "createdBy",
+          "status"
+        ]
       }
     ]
   }

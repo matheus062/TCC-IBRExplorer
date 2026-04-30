@@ -1,0 +1,147 @@
+[
+  {
+    "type": "table",
+    "name": "pcap_packet",
+    "columns": [
+      {
+        "name": "pcap",
+        "parentTable": "pcap"
+      },
+      {
+        "name": "flow",
+        "parentTable": "pcap_flow",
+        "null": true
+      },
+      {
+        "name": "packetNumber",
+        "type": "int"
+      },
+      {
+        "name": "timestamp",
+        "type": "timestamp"
+      },
+      {
+        "name": "offset",
+        "type": "bigint"
+      },
+      {
+        "name": "capturedLen",
+        "type": "int"
+      },
+      {
+        "name": "originalLen",
+        "type": "int"
+      },
+      {
+        "name": "srcIp",
+        "type": "varchar(45)",
+        "null": true
+      },
+      {
+        "name": "dstIp",
+        "type": "varchar(45)",
+        "null": true
+      },
+      {
+        "name": "srcPort",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "dstPort",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "protocol",
+        "type": "smallint",
+        "null": true
+      },
+      {
+        "name": "ipVersion",
+        "type": "smallint",
+        "null": true
+      },
+      {
+        "name": "ttl",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "ipLength",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "payloadSize",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "tcpFlags",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "icmpType",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "icmpCode",
+        "type": "int",
+        "null": true
+      }
+    ],
+    "indexes": [
+      {
+        "type": "unique",
+        "identifier": "uc_pcap_packet_pcap_packet_number",
+        "columns": [
+          "pcap",
+          "packetNumber"
+        ]
+      },
+      {
+        "type": "unique",
+        "identifier": "uc_pcap_packet_pcap_offset",
+        "columns": [
+          "pcap",
+          "offset"
+        ]
+      },
+      {
+        "type": "index",
+        "identifier": "ix_pcap_packet_pcap_timestamp",
+        "columns": [
+          "pcap",
+          "timestamp"
+        ]
+      },
+      {
+        "type": "index",
+        "columns": [
+          "srcIp"
+        ]
+      },
+      {
+        "type": "index",
+        "columns": [
+          "dstIp"
+        ]
+      },
+      {
+        "type": "index",
+        "columns": [
+          "protocol"
+        ]
+      },
+      {
+        "type": "index",
+        "columns": [
+          "flow"
+        ]
+      }
+    ]
+  }
+]

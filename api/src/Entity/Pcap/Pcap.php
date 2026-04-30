@@ -6,25 +6,53 @@ namespace IBRExplorer\Entity\Pcap;
 
 use DateTime;
 use IBRExplorer\Entity\Entity;
+use IBRExplorer\Entity\Interface\HasSingleRelationship;
 use IBRExplorer\Entity\PcapFile\PcapFile;
+use IBRExplorer\Util\SimpleArray;
 
-class Pcap extends Entity {
+class Pcap extends Entity implements HasSingleRelationship {
 
     public PcapFile $file;
-    public DateTime $startTimestamp;    // timestamp do primeiro pacote capturado.
-    public DateTime $endTimestamp;      // timestamp do último pacote capturado.
-    public ?int $packetsTotal;           // número total de pacotes no PCAP. Pode ser obtido do próprio capinfos.
+    public DateTime $startTimestamp;
+    public DateTime $endTimestamp;
+    public ?int $packetsTotal;
+    public ?SimpleArray $protocols;
+    public ?string $checksum;
+    public ?int $capturedBytes;
+    public ?int $flowsTotal;
+    public ?PcapHeader $header;
     /**
-     * @var PcapProtocol
+     * @var PcapFlow[]
      */
-    public ?array $protocols;            // lista de protocolos detectados (por exemplo, TCP, UDP, ICMP), que pode ser armazenada como texto estruturado (JSON ou CSV) ou em tabela auxiliar de protocolos.
-    public ?string $checksum;            // checksum do arquivo?
-    public PcapHeader $header;
+    public array $flows;
     /**
      * @var PcapPacket[]
      */
     public array $packets;
 
-    // Implementar o isEntity...
+    public function isEntity(string $field): ?string {
+        return match ($field) {
+            'file' => PcapFile::class,
+            'header' => PcapHeader::class,
+            'flows' => PcapFlow::class,
+            'packets' => PcapPacket::class,
+            default => parent::isEntity($field)
+        };
+    }
+
+    public function isValueObject(string $field): ?string {
+        return match ($field) {
+            'protocols' => SimpleArray::class,
+            default => parent::isValueObject($field)
+        };
+    }
+
+    public function getParentEntities(): array {
+        return ['file' => PcapFile::class];
+    }
+
+    protected function isDateTime(string $field): bool {
+        return in_array($field, ['startTimestamp', 'endTimestamp'], true) || parent::isDateTime($field);
+    }
 
 }
