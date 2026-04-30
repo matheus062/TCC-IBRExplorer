@@ -18,6 +18,7 @@ class PostgreSQL {
 
     private PDO $pdo;
     private ?PDOStatement $lastStatement = null;
+    private ?int $lastInsertedId = null;
     private RepositoryConfig $config;
     private ?User $userLogged;
     private bool $inTransaction = false;
@@ -44,10 +45,6 @@ class PostgreSQL {
         );
 
         self::$instance = $this;
-
-
-        // TODO: No MySQL havia set_charset('utf8mb4'). Verificar se será necessário
-        // forçar client_encoding explicitamente no PostgreSQL em algum ambiente específico.
     }
 
     /**
@@ -111,12 +108,15 @@ class PostgreSQL {
             array_keys($row)
         ));
 
-        $sql = 'UPDATE ' . $table . ' SET ' . $fields . ' WHERE ("id" = ?)';
+        $sql = 'UPDATE ' . $this->quoteIdentifier($table) . ' SET ' . $fields . ' WHERE ("id" = ?)';
         $row['id'] = $id;
 
         return $this->execute($sql, $row);
     }
 
+    private function quoteIdentifier(string $identifier): string {
+        return '"' . str_replace('"', '""', $identifier) . '"';
+    }
 
     /**
      * @throws Exception
@@ -127,17 +127,24 @@ class PostgreSQL {
             array_keys($row)
         ));
         $placeholders = implode(', ', array_fill(0, count($row), '?'));
-        $sql = 'INSERT INTO ' . $table . ' (' . $fields . ') VALUES (' . $placeholders . ')';
+        $sql = 'INSERT INTO ' . $this->quoteIdentifier($table) . ' (' . $fields . ') VALUES (' . $placeholders . ') RETURNING "id"';
 
-        return $this->execute($sql, $row);
+        $executed = $this->execute($sql, $row);
+
+        if (!$executed) {
+            $this->lastInsertedId = null;
+
+            return false;
+        }
+
+        $insertedId = $this->lastStatement?->fetchColumn();
+        $this->lastInsertedId = ($insertedId !== false) ? (int)$insertedId : null;
+
+        return true;
     }
 
     public function getLastInsertId(): int|false {
-        // TODO: Em PostgreSQL, lastInsertId pode depender da sequence.
-        // Ideal futuro: usar RETURNING id no INSERT quando necessário.
-        $id = $this->pdo->lastInsertId();
-
-        return $id !== false ? (int)$id : false;
+        return $this->lastInsertedId ?? false;
     }
 
     /**
@@ -215,8 +222,9 @@ class PostgreSQL {
         $groupByLine = $this->getGroupByLine($table, $groupBy);
         $orderByLine = $this->getOrderByLine($table, $orderBy);
         $limitLine = $this->getLimitLine($limit, $page);
+        $quotedTable = $this->quoteIdentifier($table);
 
-        $sql = 'SELECT DISTINCT ' . $fieldsLine . ' FROM ' . $table . ' ' .
+        $sql = 'SELECT DISTINCT ' . $fieldsLine . ' FROM ' . $quotedTable . ' ' .
             $innerJoinLine . ' ' .
             $whereLine . ' ' .
             $groupByLine . ' ' .
@@ -226,7 +234,7 @@ class PostgreSQL {
         $this->execute($sql, $params);
         $rows = $this->lastStatement->fetchAll(PDO::FETCH_ASSOC);
 
-        $countSql = 'SELECT COUNT(*) FROM ' . $table . ' ' . $innerJoinLine . ' ' . $whereLine;
+        $countSql = 'SELECT COUNT(DISTINCT ' . $quotedTable . '."id") FROM ' . $quotedTable . ' ' . $innerJoinLine . ' ' . $whereLine;
         $this->execute($countSql, $params);
 
         return [
@@ -247,7 +255,7 @@ class PostgreSQL {
         if ($fields[0] !== '*') {
             $arrayMap = array_map(
                 function ($field) use ($table) {
-                    return $table . '."' . $field . '"';
+                    return $this->quoteIdentifier($table) . '."' . $field . '"';
                 },
                 $fields
             );
@@ -259,9 +267,9 @@ class PostgreSQL {
                     if (!in_array($fieldName, $fields, true)) {
                         if (str_contains($fieldName, '.')) {
                             $fieldExplode = explode('.', $fieldName);
-                            $arrayMap[] = $fieldExplode[0] . '."' . $fieldExplode[1] . '"';
+                            $arrayMap[] = $this->quoteIdentifier($fieldExplode[0]) . '."' . $fieldExplode[1] . '"';
                         } else {
-                            $arrayMap[] = $table . '."' . $fieldName . '"';
+                            $arrayMap[] = $this->quoteIdentifier($table) . '."' . $fieldName . '"';
                         }
                     }
                 }
@@ -269,7 +277,7 @@ class PostgreSQL {
 
             $fieldsLine = implode(', ', array_unique($arrayMap));
         } else {
-            $fieldsLine = $table . '.*';
+            $fieldsLine = $this->quoteIdentifier($table) . '.*';
         }
 
         return $fieldsLine;
@@ -279,8 +287,6 @@ class PostgreSQL {
      * @throws Exception
      */
     private function getInnerJoinLine(string $table, array $where, array $orderBy, array $searchParams): string {
-        // TODO: Revisar essa função
-
         $innerJoinLine = '';
         $tablesJoined = [];
 
@@ -345,19 +351,18 @@ class PostgreSQL {
             $joinRow = $this->lastStatement->fetch(PDO::FETCH_ASSOC);
 
             if (empty($joinRow)) {
-                // TODO: Caso não encontre FK no PostgreSQL, revisar estratégia de join automático.
                 continue;
             }
 
             if ($joinRow['table_name'] === $table) {
                 $joinCondition =
-                    $joinRow['referenced_table_name'] . '."' . $joinRow['referenced_column_name'] . '" = ' . $joinRow['table_name'] . '."' . $joinRow['column_name'] . '"';
+                    $this->quoteIdentifier($joinRow['referenced_table_name']) . '."' . $joinRow['referenced_column_name'] . '" = ' . $this->quoteIdentifier($joinRow['table_name']) . '."' . $joinRow['column_name'] . '"';
             } else {
                 $joinCondition =
-                    $joinRow['table_name'] . '."' . $joinRow['column_name'] . '" = ' . $joinRow['referenced_table_name'] . '."' . $joinRow['referenced_column_name'] . '"';
+                    $this->quoteIdentifier($joinRow['table_name']) . '."' . $joinRow['column_name'] . '" = ' . $this->quoteIdentifier($joinRow['referenced_table_name']) . '."' . $joinRow['referenced_column_name'] . '"';
             }
 
-            $innerJoinLine .= $joinType . ' ' . $childTable . ' ON ' . $joinCondition . PHP_EOL;
+            $innerJoinLine .= $joinType . ' ' . $this->quoteIdentifier($childTable) . ' ON ' . $joinCondition . PHP_EOL;
             $tablesJoined[] = $childTable;
         }
 
@@ -422,9 +427,9 @@ class PostgreSQL {
 
                     if (str_contains($field, '.')) {
                         $field = explode('.', $field);
-                        $field = $field[0] . '."' . $field[1] . '"';
+                        $field = $this->quoteIdentifier($field[0]) . '."' . $field[1] . '"';
                     } else {
-                        $field = $table . '."' . $field . '"';
+                        $field = $this->quoteIdentifier($table) . '."' . $field . '"';
                     }
 
                     return '(' . $field . ' ' . $operator . ' ' . $param . ')';
@@ -453,7 +458,7 @@ class PostgreSQL {
 
                         foreach ($terms as $term) {
                             $searchParams[] =
-                                '(' . $tableToEscape . '."' . $fieldToEscape . '" LIKE ?)';
+                                '(' . $this->quoteIdentifier($tableToEscape) . '."' . $fieldToEscape . '" LIKE ?)';
                             $params[] = $term;
                         }
 
@@ -478,7 +483,7 @@ class PostgreSQL {
                 ', ',
                 array_map(
                     function ($field) use ($table) {
-                        return $table . '."' . $field . '"';
+                        return $this->quoteIdentifier($table) . '."' . $field . '"';
                     },
                     $groupBy
                 )
@@ -503,7 +508,7 @@ class PostgreSQL {
                             $field = $field[1];
                         }
 
-                        return $table . '."' . $field . '" ' . ($hasDesc ? 'DESC' : 'ASC');
+                        return $this->quoteIdentifier($table) . '."' . $field . '" ' . ($hasDesc ? 'DESC' : 'ASC');
                     },
                     $orderBy
                 )
@@ -605,10 +610,6 @@ class PostgreSQL {
 
         try {
             $this->tablesLocked = false;
-
-            // TODO: PostgreSQL não usa UNLOCK TABLES como MySQL.
-            // Os locks normalmente são liberados no COMMIT/ROLLBACK da transação.
-            // Revisar estratégia de lock granular futuramente.
         } catch (Exception) {
             throw new RuntimeException('Falha ao desbloquear as tabelas.');
         }
@@ -648,13 +649,12 @@ class PostgreSQL {
                     $tableName = $array[0];
                     $mode = strtoupper($array[1] ?? 'READ');
 
-                    // TODO: Mapeamento simples. Revisar depois conforme necessidade real.
                     $mode = match ($mode) {
                         'WRITE' => 'ACCESS EXCLUSIVE',
-                        default => 'ACCESS SHARE',
+                        default => 'SHARE',
                     };
 
-                    return 'LOCK TABLE ' . $tableName . ' IN ' . $mode . ' MODE';
+                    return 'LOCK TABLE ' . $this->quoteIdentifier($tableName) . ' IN ' . $mode . ' MODE';
                 },
                 $tables
             );
@@ -677,7 +677,7 @@ class PostgreSQL {
      * @throws Exception
      */
     public function deleteRow(string $table, int $id): bool {
-        $sql = 'DELETE FROM ' . $table . ' WHERE ("id" = ?);';
+        $sql = 'DELETE FROM ' . $this->quoteIdentifier($table) . ' WHERE ("id" = ?);';
 
         return $this->execute($sql, ['id' => $id]);
     }

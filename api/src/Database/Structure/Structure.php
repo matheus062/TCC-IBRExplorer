@@ -47,6 +47,7 @@ class Structure {
         CREATE TABLE system_config (
             "id" SERIAL PRIMARY KEY,
             "dbVersion" INT DEFAULT 0,
+            "s3Storage" BOOLEAN NOT NULL DEFAULT FALSE,
             "updatePid" INT NULL,
             "lastUpdate" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             "backupPid" INT NULL,
@@ -104,6 +105,10 @@ class Structure {
 
                     break;
                 case 'sql':
+                    if ($this->shouldSkipSql($updateContent['sql'])) {
+                        break;
+                    }
+
                     $this->db->prepareStatement($updateContent['sql'])->execute();
 
                     break;
@@ -118,9 +123,10 @@ class Structure {
      */
     private function createTable(array $create): void {
         $table = $create['name'];
+        $quotedTable = $this->quoteIdentifier($table);
 
         $sql = '
-            CREATE TABLE "' . $table . '" (
+            CREATE TABLE ' . $quotedTable . ' (
                 "id" SERIAL PRIMARY KEY,
                 "entityStatus" SMALLINT DEFAULT 1 NOT NULL CHECK ("entityStatus" IN (1,2,3)),
                 "key" VARCHAR(16) UNIQUE NOT NULL,
@@ -168,11 +174,19 @@ class Structure {
         }
     }
 
+    private function quoteIdentifier(string $identifier): string {
+        return '"' . str_replace('"', '""', $identifier) . '"';
+    }
+
     private function processColumn(string $table, array $column, array &$foreignKeys): string {
         $columnType = isset($column['parentTable']) ? 'INT' : strtoupper($column['type']);
 
         if ($columnType === 'TINYINT') {
             $columnType = 'SMALLINT';
+        }
+
+        if ($columnType === 'JSON') {
+            $columnType = 'JSONB';
         }
 
         $sql = '"' . $column['name'] . '" ' . $columnType;
@@ -189,7 +203,12 @@ class Structure {
 
         if (!empty($column['parentTable'])) {
             $constraint = 'CONSTRAINT fk_' . $table . '_' . $column['parentTable'] . '_' . $column['name'];
-            $foreignKey = 'FOREIGN KEY (' . $column['name'] . ') REFERENCES ' . $column['parentTable'] . '(id)';
+            $foreignKey = sprintf(
+                'FOREIGN KEY (%s) REFERENCES %s(%s)',
+                $this->quoteIdentifier($column['name']),
+                $this->quoteIdentifier($column['parentTable']),
+                $this->quoteIdentifier('id')
+            );
             $foreignKeys[] = $constraint . ' ' . $foreignKey;
         }
 
@@ -265,6 +284,12 @@ class Structure {
                 $this->db->insertRow($entity['table'], $row);
             }
         }
+    }
+
+    private function shouldSkipSql(string $sql): bool {
+        $normalizedSql = strtoupper(trim($sql));
+
+        return str_starts_with($normalizedSql, 'SET FOREIGN_KEY_CHECKS');
     }
 
     /**
