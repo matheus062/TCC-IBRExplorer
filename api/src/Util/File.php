@@ -40,7 +40,7 @@ class File extends ValueObject {
         if ($database) {
             $serialize['s3Store'] = $this->s3Store;
 
-            if (!empty($this->altName)) {
+            if (!empty($this->awsS3Key)) {
                 $serialize['awsS3Key'] = $this->awsS3Key;
             }
 
