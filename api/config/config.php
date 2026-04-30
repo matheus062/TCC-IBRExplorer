@@ -30,3 +30,5 @@ define("AWS_ACCESS_KEY", getenv('AWS_ACCESS_KEY'));
 define("AWS_SECRET_KEY", getenv('AWS_SECRET_KEY'));
 define("AWS_REGION", getenv('AWS_REGION'));
 define("AWS_BUCKET", getenv('AWS_BUCKET'));
+
+define("PCAP_WORKER_CHILDREN", max(1, (int)(getenv('PCAP_WORKER_CHILDREN') ?: 1)));
