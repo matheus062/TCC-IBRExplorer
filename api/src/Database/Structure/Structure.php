@@ -128,7 +128,6 @@ class Structure {
                 "createdBy" INT NOT NULL,
                 "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 "updatedBy" INT NOT NULL,
-                "webMetadata" JSON NULL,
                 "internalNotes" TEXT NULL
         ';
 

@@ -28,8 +28,6 @@ abstract class Entity implements JsonSerializable {
     public DateTime $updatedAt;
     public User $updatedBy;
     public ?string $internalNotes;
-    // public ?WebMetadata $webMetadata;
-    public null $webMetadata;
 
     protected array $messages = [];
 
