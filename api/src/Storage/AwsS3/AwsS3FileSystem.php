@@ -75,7 +75,8 @@ class AwsS3FileSystem {
     }
 
     private function buildKey(string $entityPath, File $file): string {
-        return $entityPath . '/' . $file->name . '.' . $file->ext->value;
+        return $file->awsS3Key
+            ?? ($entityPath . '/' . $file->name . '.' . $file->ext->value);
     }
 
     /**
@@ -93,6 +94,24 @@ class AwsS3FileSystem {
             $file->data = base64_encode((string)$result['Body']);
         } catch (AwsException $e) {
             throw new Exception('Erro ao ler arquivo do S3: ' . $e->getAwsErrorMessage());
+        }
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function getFileSize(string $entityPath, File $file): int {
+        $key = $this->buildKey($entityPath, $file);
+
+        try {
+            $result = $this->client->headObject([
+                'Bucket' => $this->config->AwsBucket,
+                'Key' => $key,
+            ]);
+
+            return (int)($result['ContentLength'] ?? 0);
+        } catch (AwsException $e) {
+            throw new Exception('Erro ao consultar arquivo no S3: ' . $e->getAwsErrorMessage());
         }
     }
 

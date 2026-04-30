@@ -14,12 +14,14 @@ use IBRExplorer\Api\Action\Entity\EntityStatusDeleteAction;
 use IBRExplorer\Api\Action\Entity\EntityUpdateAction;
 use IBRExplorer\Api\Action\Password\PasswordChangeAction;
 use IBRExplorer\Api\Action\Password\PasswordForgotAction;
+use IBRExplorer\Api\Action\PcapFile\PcapFileConfirmUploadAction;
 use IBRExplorer\Api\Action\PcapFile\PcapFileStartUploadAction;
 use IBRExplorer\Api\Action\PcapFile\PcapFileUploadChunkAction;
 use IBRExplorer\Api\Action\System\OptionsAction;
 use IBRExplorer\Api\Enum\ActionMethod;
 use IBRExplorer\Api\Middleware\Authorization\Authorization;
 use IBRExplorer\Api\Middleware\ErrorHandler\ErrorHandler;
+use IBRExplorer\Api\Middleware\Permission\PcapPermission;
 use IBRExplorer\Api\Middleware\Permission\UsersPermission;
 use IBRExplorer\Database\PostgreSQL;
 use IBRExplorer\Database\RepositoryConfig;
@@ -169,20 +171,25 @@ class IBRExplorerApi {
     }
 
     private function setPcapRoutes(): void {
-        // TODO: Criar o permission do Pcap
-        /*
-         * POST - Gerar solicitação
-         * PUT - Enviar pedaço de arquivo
-         * */
-
-        // Integrações RESTful e jobs assíncronos: vão querer saber como você estrutura background workers (sidekiq, queue systems, cron jobs, message brokers tipo RabbitMQ, Kafka, SQS).
-
-
         $this->entityCrudRoute(
             '/pcap/file',
             PcapFile::class,
             createAction: PcapFileStartUploadAction::class,
-            updateAction: PcapFileUploadChunkAction::class,
+            updateAction: null,
+            permissionMiddleware: PcapPermission::class
+        );
+
+        $this->setEndpoint(
+            ActionMethod::Post,
+            '/pcap/file/{key}/chunk',
+            PcapFileUploadChunkAction::class,
+            PcapPermission::class
+        );
+        $this->setEndpoint(
+            ActionMethod::Post,
+            '/pcap/file/{key}/confirm',
+            PcapFileConfirmUploadAction::class,
+            PcapPermission::class
         );
     }
 
@@ -211,8 +218,6 @@ class IBRExplorerApi {
         );
         $database = new PostgreSQL($repositoryConfig);
         $database->initDatabase();
-
-        // TODO: Revisar sobre essa parte de initUser antes de continuar
         /** @noinspection PhpUnhandledExceptionInspection */
         $database->initUser(1);
     }

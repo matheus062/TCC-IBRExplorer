@@ -450,7 +450,7 @@ class EntityRepository {
                     $data[$field] = json_encode($value);
                 }
 
-                if (is_a($valueObject, File::class, true)) {
+                if (is_a($valueObject, File::class, true) && !empty($entity->$field->data)) {
                     $filesToSave[$field] = $entity->$field;
                 }
 

@@ -54,13 +54,8 @@ class FileSystem {
      * @throws Exception
      */
     private function saveLocalFile(string $entityPath, File $file): bool {
-        $fullPath = $this->getFilesPath() . $entityPath . DIRECTORY_SEPARATOR . $file->name . '.' . $file->ext->value;
-
-        $directory = dirname($fullPath);
-
-        if (!is_dir($directory) && !mkdir($directory, 0755, true)) {
-            throw new Exception('Não foi possível criar o diretório do arquivo.');
-        }
+        $fullPath = $this->getAbsolutePath($entityPath, $file);
+        $this->ensureDirectory(dirname($fullPath));
 
         $fileData = base64_decode($file->data ?? '', true);
 
@@ -71,8 +66,18 @@ class FileSystem {
         return (file_put_contents($fullPath, $fileData) !== false);
     }
 
+    private function ensureDirectory(string $directory): void {
+        if (!is_dir($directory) && !mkdir($directory, 0755, true)) {
+            throw new RuntimeException('Não foi possível criar o diretório do arquivo.');
+        }
+    }
+
     public function getFilesPath(): string {
         return $this->filesPath;
+    }
+
+    public function getAbsolutePath(string $entityPath, File $file): string {
+        return $this->getFilesPath() . $entityPath . DIRECTORY_SEPARATOR . $file->name . '.' . $file->ext->value;
     }
 
     /**
@@ -88,7 +93,7 @@ class FileSystem {
      * @throws Exception
      */
     private function readLocalFile(string $entityPath, File $file): void {
-        $fullPath = $this->getFilesPath() . $entityPath . DIRECTORY_SEPARATOR . $file->name . '.' . $file->ext->value;
+        $fullPath = $this->getAbsolutePath($entityPath, $file);
         $file->data = base64_encode($this->readStringFile($fullPath));
     }
 
@@ -128,6 +133,7 @@ class FileSystem {
             throw new Exception('AWS S3 Bucket não configurado.');
         }
 
+        $file->s3Store = true;
         $file->awsS3Key = 'uploads/' . $entityPath . '/' . $file->name . '.' . $file->ext->value;
         $contentType = $file->getContentTypeByExt()->value;
         $s3 = new S3Client([
@@ -139,7 +145,6 @@ class FileSystem {
             ]
         ]);
 
-        // TODO: Validar se não precisa ser 'public-read' se quiser acesso público direto
         $cmd = $s3->getCommand('PutObject', [
             'Bucket' => AWS_BUCKET,
             'Key' => $file->awsS3Key,
@@ -155,6 +160,34 @@ class FileSystem {
                 'Content-Type' => $contentType
             ]
         ];
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function getFileSize(string $entityPath, File $file): int {
+        return $file->s3Store
+            ? AwsS3FileSystem::getInstance($this->s3Config)->getFileSize($entityPath, $file)
+            : $this->getLocalFileSize($entityPath, $file);
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function getLocalFileSize(string $entityPath, File $file): int {
+        $fullPath = $this->getAbsolutePath($entityPath, $file);
+
+        if (!file_exists($fullPath) || !is_readable($fullPath)) {
+            throw new Exception('Arquivo não localizado ou sem permissão de leitura.');
+        }
+
+        $size = filesize($fullPath);
+
+        if ($size === false) {
+            throw new Exception('Não foi possível obter o tamanho do arquivo.');
+        }
+
+        return $size;
     }
 
 }

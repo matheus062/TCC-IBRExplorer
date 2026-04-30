@@ -12,27 +12,31 @@ use Psr\Http\Message\ResponseInterface as Response;
 class PcapFileUploadChunkAction extends PcapFileAction {
 
     protected function run(): Response {
-        $key = (string)($this->arguments['id'] ?? '');
+        $key = (string)($this->arguments['key'] ?? '');
         /** @var PcapFile|false $file */
-        $file = $this->entityService->getByKey($key, ['createdBy']);
+        $file = $this->entityService->getByKey($key, ['createdBy', 'file', 'status']);
 
         if ($file === false) {
             return $this->respondWithServiceError();
         } elseif (PostgreSQL::$instance->getUser()->id !== $file->createdBy->id) {
             return $this->respond(
-                'Usuário sem permissão de carregar `chunk`.', StatusCode::Forbidden
+                'Usuário sem permissão de carregar `chunk`.',
+                StatusCode::Forbidden
             );
         }
 
-        $chunk = (int)($this->body['chunk'] ?? 0);
-        $totalChunks = (int)($this->body['chunks'] ?? 1);
-        $uploadedFile = $this->request->getUploadedFiles()['file'] ?? null;
+        $chunk = (int)($this->body['chunk'] ?? -1);
+        $totalChunks = (int)($this->body['chunks'] ?? 0);
+        $data = (string)($this->body['data'] ?? '');
 
-        if (empty($uploadedFile) || ($uploadedFile->getError() !== UPLOAD_ERR_OK)) {
-            return $this->respond('Ocorreu um erro ao enviar `chunk` do arquivo.', StatusCode::BadRequest);
+        if (($chunk < 0) || ($totalChunks < 1) || empty($data)) {
+            return $this->respond(
+                'Necessário enviar `chunk`, `chunks` e `data` para processar o envio local.',
+                StatusCode::BadRequest
+            );
         }
 
-        $success = $this->entityService->saveFileChunk($file->id, $chunk, $totalChunks, $uploadedFile);
+        $success = $this->entityService->saveUploadChunk($file, $chunk, $totalChunks, $data);
 
         if (!$success) {
             return $this->respondWithServiceError();
