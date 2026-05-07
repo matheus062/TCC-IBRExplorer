@@ -15,6 +15,12 @@ class TsharkPcapParser {
 
     private const string OUTPUT_SEPARATOR = '|';
     private const int STDERR_BUFFER_LIMIT_BYTES = 65536;
+    private const array ALLOWED_PROTOCOLS = [
+        PcapProtocolType::Tcp->value,
+        PcapProtocolType::Udp->value,
+        PcapProtocolType::Icmp->value,
+        PcapProtocolType::Icmpv6->value,
+    ];
 
     private const array FIELD_ORDER = [
         'frame.number',
@@ -192,6 +198,11 @@ class TsharkPcapParser {
         $protocolNumber = $this->normalizeProtocolValue(
             $this->firstNonEmpty($fields['ip.proto'], $fields['ipv6.nxt'])
         );
+
+        if (!$this->isAllowedProtocol($protocolNumber)) {
+            return null;
+        }
+
         $udpLength = $this->parseDecimalInt($fields['udp.length']);
 
         return [
@@ -224,6 +235,10 @@ class TsharkPcapParser {
         }
 
         return PcapProtocolType::tryFrom($protocol)?->value ?? PcapProtocolType::Other->value;
+    }
+
+    private function isAllowedProtocol(?int $protocolValue): bool {
+        return ($protocolValue !== null) && in_array($protocolValue, self::ALLOWED_PROTOCOLS, true);
     }
 
     private function parseNullableInt(?string $value, bool $allowHex = false): ?int {

@@ -76,11 +76,17 @@ class PcapProcessingService {
             'capturedBytes' => 0,
             'protocols' => [],
         ];
+        $offsetValidation = [
+            'checked' => 0,
+            'lastOffset' => null,
+            'lastPacketNumber' => null,
+        ];
 
         try {
             $this->parser->streamPackets($filePath, function (array $packet) use (
                 &$batch,
                 &$pcapInitialized,
+                &$offsetValidation,
                 &$summary,
                 $header,
                 $pcapFile,
@@ -116,6 +122,8 @@ class PcapProcessingService {
 
                     $pcapInitialized = true;
                 }
+
+                $this->validateOffsetSequence($packet, $offsetValidation);
 
                 $summary['startTimestamp'] ??= $packet['timestamp'];
                 $summary['endTimestamp'] = $packet['timestamp'];
@@ -186,6 +194,29 @@ class PcapProcessingService {
         $processedBytes = (int)$lastPacket['offset'] + (int)$lastPacket['capturedLen'];
         $progress = min(99, max(1, ($processedBytes / max(1, $fileSize)) * 100));
         $this->pcapFileService->updateWorkerProgress($pcapFile->id, round($progress, 2));
+    }
+
+    private function validateOffsetSequence(array $packet, array &$state): void {
+        $offset = (int)$packet['offset'];
+        $packetNumber = (int)$packet['packetNumber'];
+
+        if ($offset < 0) {
+            throw new RuntimeException('Offset inválido no pacote #' . $packetNumber . '.');
+        }
+
+        if (($state['lastOffset'] !== null) && ($offset < $state['lastOffset'])) {
+            throw new RuntimeException(
+                'Sequência de offsets inválida entre os pacotes #'
+                . $state['lastPacketNumber']
+                . ' e #'
+                . $packetNumber
+                . '.'
+            );
+        }
+
+        $state['checked']++;
+        $state['lastOffset'] = $offset;
+        $state['lastPacketNumber'] = $packetNumber;
     }
 
 }
