@@ -203,7 +203,7 @@ class EntityRepository {
                         $parentField => $entity->id
                     ],
                     orderBy: ['id'],
-                    limit: 0
+                    limit: 100
                 );
 
                 if (empty($children['entities'])) {

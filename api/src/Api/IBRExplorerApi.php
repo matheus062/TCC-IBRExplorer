@@ -23,13 +23,13 @@ use IBRExplorer\Api\Middleware\Authorization\Authorization;
 use IBRExplorer\Api\Middleware\ErrorHandler\ErrorHandler;
 use IBRExplorer\Api\Middleware\Permission\PcapPermission;
 use IBRExplorer\Api\Middleware\Permission\UsersPermission;
-use IBRExplorer\Database\PostgreSQL;
-use IBRExplorer\Database\RepositoryConfig;
+use IBRExplorer\Bootstrap\ApplicationBootstrap;
 use IBRExplorer\Entity\Address\Address;
 use IBRExplorer\Entity\Address\City;
 use IBRExplorer\Entity\Address\Country;
 use IBRExplorer\Entity\Address\State;
 use IBRExplorer\Entity\Entity;
+use IBRExplorer\Entity\Pcap\Pcap;
 use IBRExplorer\Entity\PcapFile\PcapFile;
 use IBRExplorer\Entity\User\User;
 use IBRExplorer\Repository\Address\AddressRepository;
@@ -39,8 +39,7 @@ use IBRExplorer\Service\Address\CityService;
 use IBRExplorer\Service\Address\CountryService;
 use IBRExplorer\Service\EntityService;
 use IBRExplorer\Service\Pcap\PcapFileService;
-use IBRExplorer\Storage\AwsS3\Config\AwsS3FileSystemConfig;
-use IBRExplorer\Storage\FileSystem;
+use IBRExplorer\Service\Pcap\PcapService;
 use Slim\App;
 use Slim\Factory\AppFactory;
 use Slim\Routing\RouteCollectorProxy;
@@ -58,8 +57,7 @@ class IBRExplorerApi {
             self::$instance = new IBRExplorerApi();
             self::$instance->prepareApp();
             self::$instance->setRoutes();
-            self::$instance->startFileSystem();
-            self::$instance->startDbConnection();
+            ApplicationBootstrap::boot();
         }
 
         return self::$instance;
@@ -193,35 +191,6 @@ class IBRExplorerApi {
         );
     }
 
-    private function startFileSystem(): void {
-        FileSystem::getInstance(
-            __DIR__ . '/../../files/',
-            __DIR__ . '/../../assets/',
-            new AwsS3FileSystemConfig(
-                AWS_REGION,
-                AWS_BUCKET,
-                AWS_ACCESS_KEY,
-                AWS_SECRET_KEY
-            )
-        );
-    }
-
-    private function startDbConnection(): void {
-        $repositoryConfig = new RepositoryConfig(
-            POSTGRES_HOST,
-            POSTGRES_PORT,
-            POSTGRES_USER,
-            POSTGRES_PASSWORD,
-            POSTGRES_DATABASE,
-            __DIR__ . '/../src/Database/Structure/Database/',
-            __DIR__ . '/../files/'
-        );
-        $database = new PostgreSQL($repositoryConfig);
-        $database->initDatabase();
-        /** @noinspection PhpUnhandledExceptionInspection */
-        $database->initUser(1);
-    }
-
     /**
      * @throws Exception
      */
@@ -241,6 +210,7 @@ class IBRExplorerApi {
         $service = match ($entityClassName) {
             Country::class => new CountryService(),
             City::class => new CityService(),
+            Pcap::class => new PcapService(),
             PcapFile::class => new PcapFileService(),
             default => new EntityService($entityClassName)
         };

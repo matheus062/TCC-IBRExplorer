@@ -22,9 +22,9 @@ class Pcap extends Entity implements HasSingleRelationship {
     public ?int $flowsTotal;
     public ?PcapHeader $header;
     /**
-     * @var PcapFlow[]
+     * @var PcapFlow[]|null
      */
-    public array $flows;
+    public ?array $flows;
     /**
      * @var PcapPacket[]
      */

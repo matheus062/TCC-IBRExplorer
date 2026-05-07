@@ -11,6 +11,7 @@ use IBRExplorer\Database\PostgreSQL;
 use IBRExplorer\Entity\Entity;
 use IBRExplorer\Entity\Enum\PcapFile\PcapFileStatus;
 use IBRExplorer\Entity\Enum\PcapFile\PcapFileVisibility;
+use IBRExplorer\Entity\Enum\System\EntityStatus;
 use IBRExplorer\Entity\Enum\User\UserRoleType;
 use IBRExplorer\Entity\PcapFile\PcapFile;
 use IBRExplorer\Service\EntityService;
@@ -357,6 +358,116 @@ class PcapFileService extends EntityService implements HasProcessBeforeSave {
                 'status' => PcapFileStatus::WaitingProcess->value,
                 'message' => 'Arquivo confirmado e enviado para a fila de processamento.'
             ];
+        } catch (Exception $e) {
+            return $this->setError($e->getMessage(), $e->getCode());
+        }
+    }
+
+    public function claimNextForWorker(): PcapFile|false {
+        $this->setError([]);
+        $db = PostgreSQL::$instance;
+        $db->beginTransaction();
+
+        try {
+            $db->execute('
+                SELECT *
+                FROM "pcap_file"
+                WHERE "entityStatus" = ?
+                  AND "status" = ?
+                ORDER BY "createdAt"
+                FOR UPDATE SKIP LOCKED
+                LIMIT 1
+            ', [
+                EntityStatus::Active->value,
+                PcapFileStatus::WaitingProcess->value
+            ]);
+            $row = $db->getLastStatement()?->fetch();
+
+            if ($row === false) {
+                $db->commit();
+
+                return false;
+            }
+
+            $now = (new DateTime())->format('Y-m-d H:i:s');
+            $attempts = ((int)($row['processAttempts'] ?? 0)) + 1;
+            $pcapFile = new PcapFile($row);
+            $pcapFile->setData([
+                'status' => PcapFileStatus::Processing,
+                'processed' => '0.00',
+                'processStartedAt' => $now,
+                'processFinishedAt' => null,
+                'processAttempts' => $attempts,
+                'processError' => null,
+            ]);
+
+            if (!$this->saveEntity($pcapFile)) {
+                throw new Exception($this->getErrorAsString(), $this->getCode()->value);
+            }
+
+            $pcapFile->setData([
+                'key' => $row['key'],
+                'createdAt' => $row['createdAt'],
+                'createdBy' => $row['createdBy'],
+            ]);
+
+            $db->commit();
+
+            return $pcapFile;
+        } catch (Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollback();
+            }
+
+            return $this->setError($e->getMessage(), $e->getCode());
+        }
+    }
+
+    public function updateWorkerProgress(int $id, float $progress): bool {
+        $progress = max(0, min(100, $progress));
+        $this->setError([]);
+
+        try {
+            return PostgreSQL::$instance->updateRow('pcap_file', [
+                'processed' => number_format($progress, 2, '.', ''),
+                'updatedAt' => (new DateTime())->format('Y-m-d H:i:s'),
+                'updatedBy' => PostgreSQL::$instance->getUser()->id,
+            ], $id);
+        } catch (Exception $e) {
+            return $this->setError($e->getMessage(), $e->getCode());
+        }
+    }
+
+    public function markWorkerProcessed(int $id): bool {
+        $now = (new DateTime())->format('Y-m-d H:i:s');
+        $this->setError([]);
+
+        try {
+            return PostgreSQL::$instance->updateRow('pcap_file', [
+                'status' => PcapFileStatus::Processed->value,
+                'processed' => '100.00',
+                'processFinishedAt' => $now,
+                'processError' => null,
+                'updatedAt' => $now,
+                'updatedBy' => PostgreSQL::$instance->getUser()->id,
+            ], $id);
+        } catch (Exception $e) {
+            return $this->setError($e->getMessage(), $e->getCode());
+        }
+    }
+
+    public function markWorkerError(int $id, string $message): bool {
+        $now = (new DateTime())->format('Y-m-d H:i:s');
+        $this->setError([]);
+
+        try {
+            return PostgreSQL::$instance->updateRow('pcap_file', [
+                'status' => PcapFileStatus::Error->value,
+                'processFinishedAt' => $now,
+                'processError' => $message,
+                'updatedAt' => $now,
+                'updatedBy' => PostgreSQL::$instance->getUser()->id,
+            ], $id);
         } catch (Exception $e) {
             return $this->setError($e->getMessage(), $e->getCode());
         }

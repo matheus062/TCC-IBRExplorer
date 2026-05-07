@@ -32,6 +32,29 @@ services:
       postgres:
         condition: service_healthy
     env_file: .env
+    healthcheck:
+      test: [ "CMD", "php", "-r", "exit(file_exists('/var/www/api/vendor/autoload.php') ? 0 : 1);" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - app-network
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+    container_name: pcap_worker
+    restart: unless-stopped
+    volumes:
+      - ./api:/var/www/api
+      - vendor_data:/var/www/api/vendor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      php:
+        condition: service_healthy
+    env_file: .env
     networks:
       - app-network
 

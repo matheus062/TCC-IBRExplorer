@@ -20,7 +20,7 @@
       },
       {
         "name": "processed",
-        "type": "decimal(3,2)",
+        "type": "decimal(5,2)",
         "default": 0
       },
       {

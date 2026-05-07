@@ -32,3 +32,8 @@ define("AWS_REGION", getenv('AWS_REGION'));
 define("AWS_BUCKET", getenv('AWS_BUCKET'));
 
 define("PCAP_WORKER_CHILDREN", max(1, (int)(getenv('PCAP_WORKER_CHILDREN') ?: 1)));
+define("PCAP_WORKER_USER_ID", max(1, (int)(getenv('PCAP_WORKER_USER_ID') ?: 1)));
+define("PCAP_WORKER_POLL_SECONDS", max(1, (int)(getenv('PCAP_WORKER_POLL_SECONDS') ?: 30)));
+define("PCAP_PACKET_BATCH_SIZE", max(1, (int)(getenv('PCAP_PACKET_BATCH_SIZE') ?: 500)));
+define("PCAP_TSHARK_BIN", getenv('PCAP_TSHARK_BIN') ?: 'tshark');
+define("PCAP_TSHARK_TIMEOUT_SECONDS", max(1, (int)(getenv('PCAP_TSHARK_TIMEOUT_SECONDS') ?: 30)));
