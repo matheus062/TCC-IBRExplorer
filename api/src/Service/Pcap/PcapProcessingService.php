@@ -184,18 +184,6 @@ class PcapProcessingService {
         }
     }
 
-    /**
-     * @throws Exception
-     */
-    private function flushPackets(PcapFile $pcapFile, array $batch, int $fileSize): void {
-        $this->packetBatchWriter->insertBatch($pcapFile->id, $batch);
-
-        $lastPacket = $batch[array_key_last($batch)];
-        $processedBytes = (int)$lastPacket['offset'] + (int)$lastPacket['capturedLen'];
-        $progress = min(99, max(1, ($processedBytes / max(1, $fileSize)) * 100));
-        $this->pcapFileService->updateWorkerProgress($pcapFile->id, round($progress, 2));
-    }
-
     private function validateOffsetSequence(array $packet, array &$state): void {
         $offset = (int)$packet['offset'];
         $packetNumber = (int)$packet['packetNumber'];
@@ -217,6 +205,18 @@ class PcapProcessingService {
         $state['checked']++;
         $state['lastOffset'] = $offset;
         $state['lastPacketNumber'] = $packetNumber;
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function flushPackets(PcapFile $pcapFile, array $batch, int $fileSize): void {
+        $this->packetBatchWriter->insertBatch($pcapFile->id, $batch);
+
+        $lastPacket = $batch[array_key_last($batch)];
+        $processedBytes = (int)$lastPacket['offset'] + (int)$lastPacket['capturedLen'];
+        $progress = min(99, max(1, ($processedBytes / max(1, $fileSize)) * 100));
+        $this->pcapFileService->updateWorkerProgress($pcapFile->id, round($progress, 2));
     }
 
 }

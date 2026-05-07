@@ -237,10 +237,6 @@ class TsharkPcapParser {
         return PcapProtocolType::tryFrom($protocol)?->value ?? PcapProtocolType::Other->value;
     }
 
-    private function isAllowedProtocol(?int $protocolValue): bool {
-        return ($protocolValue !== null) && in_array($protocolValue, self::ALLOWED_PROTOCOLS, true);
-    }
-
     private function parseNullableInt(?string $value, bool $allowHex = false): ?int {
         if ($value === null || $value === '') {
             return null;
@@ -269,6 +265,10 @@ class TsharkPcapParser {
         }
 
         return null;
+    }
+
+    private function isAllowedProtocol(?int $protocolValue): bool {
+        return ($protocolValue !== null) && in_array($protocolValue, self::ALLOWED_PROTOCOLS, true);
     }
 
     private function parseRequiredInt(string $value, string $field): int {
