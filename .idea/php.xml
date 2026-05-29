@@ -90,6 +90,9 @@
       <path value="$PROJECT_DIR$/api/vendor/thecodingmachine/safe" />
       <path value="$PROJECT_DIR$/api/vendor/sabberworm/php-css-parser" />
       <path value="$PROJECT_DIR$/api/vendor/masterminds/html5" />
+      <path value="$PROJECT_DIR$/api/vendor/geoip2/geoip2" />
+      <path value="$PROJECT_DIR$/api/vendor/maxmind/web-service-common" />
+      <path value="$PROJECT_DIR$/api/vendor/maxmind-db/reader" />
     </include_path>
   </component>
   <component name="PhpInterpreters">
