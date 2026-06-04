@@ -18,7 +18,7 @@ class PcapPacketBatchWriter {
         'updatedAt',
         'updatedBy',
         'pcap',
-        'flow',
+        'flowKey',
         'packetNumber',
         'timestamp',
         'offset',
@@ -59,12 +59,14 @@ class PcapPacketBatchWriter {
         $userId = $db->getUser()->id;
         $now = (new DateTime())->format('Y-m-d H:i:s');
         $columnsSql = '"' . implode('", "', self::INSERT_COLUMNS) . '"';
+        $rowPlaceholder = '(' . implode(', ', array_fill(0, count(self::INSERT_COLUMNS), '?')) . ')';
         $valuesSql = [];
         $params = [];
 
         foreach ($packets as $packet) {
-            $valuesSql[] = '(' . implode(', ', array_fill(0, count(self::INSERT_COLUMNS), '?')) . ')';
-            $params = array_merge($params, [
+            $valuesSql[] = $rowPlaceholder;
+            array_push(
+                $params,
                 1,
                 $this->buildPacketKey($pcapId, (int)$packet['packetNumber']),
                 $now,
@@ -72,7 +74,7 @@ class PcapPacketBatchWriter {
                 $now,
                 $userId,
                 $pcapId,
-                null,
+                $packet['flowKey'],
                 $packet['packetNumber'],
                 $packet['timestamp'],
                 $packet['offset'],
@@ -90,7 +92,7 @@ class PcapPacketBatchWriter {
                 $packet['tcpFlags'],
                 $packet['icmpType'],
                 $packet['icmpCode'],
-            ]);
+            );
         }
 
         /** @noinspection SqlInsertValues */

@@ -18,6 +18,7 @@ class PcapProcessingService {
     private TsharkPcapParser $parser;
     private PcapHeaderReader $headerReader;
     private PcapPacketBatchWriter $packetBatchWriter;
+    private PcapFlowGenerationService $flowGenerationService;
 
     public function __construct(IBRExplorerApi $api) {
         /** @var PcapFileService $pcapFileService */
@@ -30,6 +31,7 @@ class PcapProcessingService {
         $this->parser = new TsharkPcapParser();
         $this->headerReader = new PcapHeaderReader();
         $this->packetBatchWriter = new PcapPacketBatchWriter();
+        $this->flowGenerationService = new PcapFlowGenerationService();
     }
 
     /**
@@ -145,6 +147,7 @@ class PcapProcessingService {
                     'srcPort' => $packet['srcPort'],
                     'dstPort' => $packet['dstPort'],
                     'protocol' => $packet['protocol'],
+                    'flowKey' => $this->buildFlowKey($packet),
                     'ipVersion' => $packet['ipVersion'],
                     'ttl' => $packet['ttl'],
                     'ipLength' => $packet['ipLength'],
@@ -169,6 +172,7 @@ class PcapProcessingService {
             }
 
             $summary['protocols'] = array_values($summary['protocols']);
+            $summary['flowsTotal'] = $this->flowGenerationService->generateForPcap($pcapFile->id);
 
             if (!$this->pcapService->finalizeParsedCapture($pcapFile, $summary)) {
                 throw new RuntimeException($this->pcapService->getErrorAsString());
@@ -205,6 +209,18 @@ class PcapProcessingService {
         $state['checked']++;
         $state['lastOffset'] = $offset;
         $state['lastPacketNumber'] = $packetNumber;
+    }
+
+    private function buildFlowKey(array $packet): string {
+        return md5(
+            ($packet['srcIp'] ?? '') . '|' .
+            ($packet['dstIp'] ?? '') . '|' .
+            ($packet['srcPort'] ?? '') . '|' .
+            ($packet['dstPort'] ?? '') . '|' .
+            ($packet['protocol'] ?? '') . '|' .
+            ($packet['icmpType'] ?? '') . '|' .
+            ($packet['icmpCode'] ?? '')
+        );
     }
 
     /**
