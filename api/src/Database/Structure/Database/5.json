@@ -8,8 +8,8 @@
         "parentTable": "pcap"
       },
       {
-        "name": "flow",
-        "parentTable": "pcap_flow",
+        "name": "flowKey",
+        "type": "varchar(120)",
         "null": true
       },
       {
@@ -138,8 +138,10 @@
       },
       {
         "type": "index",
+        "identifier": "ix_pcap_packet_pcap_flow_key",
         "columns": [
-          "flow"
+          "pcap",
+          "flowKey"
         ]
       }
     ]

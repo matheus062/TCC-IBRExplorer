@@ -86,6 +86,16 @@
       {
         "name": "endTimestamp",
         "type": "timestamp"
+      },
+      {
+        "name": "icmpType",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "icmpCode",
+        "type": "int",
+        "null": true
       }
     ],
     "indexes": [
@@ -120,6 +130,14 @@
       {
         "type": "index",
         "columns": [
+          "protocol"
+        ]
+      },
+      {
+        "type": "index",
+        "identifier": "ix_pcap_flow_pcap_protocol",
+        "columns": [
+          "pcap",
           "protocol"
         ]
       }

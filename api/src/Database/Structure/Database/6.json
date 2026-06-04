@@ -1,0 +1,429 @@
+[
+  {
+    "type": "table",
+    "name": "enrichment_integration",
+    "columns": [
+      {
+        "name": "provider",
+        "type": "smallint"
+      },
+      {
+        "name": "identifier",
+        "type": "varchar(80)",
+        "unique": true
+      },
+      {
+        "name": "name",
+        "type": "varchar(120)"
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "null": true
+      },
+      {
+        "name": "enabled",
+        "type": "bool",
+        "default": "false"
+      },
+      {
+        "name": "alwaysExecute",
+        "type": "bool",
+        "default": "false"
+      },
+      {
+        "name": "requiresApiKey",
+        "type": "bool",
+        "default": "false"
+      },
+      {
+        "name": "configSchema",
+        "type": "json"
+      },
+      {
+        "name": "config",
+        "type": "json",
+        "null": true
+      },
+      {
+        "name": "resultExcludedFields",
+        "type": "json",
+        "null": true
+      },
+      {
+        "name": "dailyLimit",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "weeklyLimit",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "monthlyLimit",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "dailyUsed",
+        "type": "int",
+        "default": 0
+      },
+      {
+        "name": "weeklyUsed",
+        "type": "int",
+        "default": 0
+      },
+      {
+        "name": "monthlyUsed",
+        "type": "int",
+        "default": 0
+      },
+      {
+        "name": "dailyResetAt",
+        "type": "timestamp",
+        "null": true
+      },
+      {
+        "name": "weeklyResetAt",
+        "type": "timestamp",
+        "null": true
+      },
+      {
+        "name": "monthlyResetAt",
+        "type": "timestamp",
+        "null": true
+      },
+      {
+        "name": "lastUsedAt",
+        "type": "timestamp",
+        "null": true
+      },
+      {
+        "name": "lastError",
+        "type": "text",
+        "null": true
+      }
+    ],
+    "indexes": [
+      {
+        "type": "unique",
+        "identifier": "uc_enrichment_integration_provider",
+        "columns": [
+          "provider"
+        ]
+      },
+      {
+        "type": "index",
+        "identifier": "ix_enrichment_integration_enabled",
+        "columns": [
+          "enabled"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "table",
+    "name": "enrichment_target",
+    "columns": [
+      {
+        "name": "type",
+        "type": "smallint"
+      },
+      {
+        "name": "value",
+        "type": "varchar(2048)"
+      },
+      {
+        "name": "normalizedValue",
+        "type": "varchar(512)"
+      },
+      {
+        "name": "firstSeenAt",
+        "type": "timestamp",
+        "null": true
+      },
+      {
+        "name": "lastSeenAt",
+        "type": "timestamp",
+        "null": true
+      },
+      {
+        "name": "lastEnrichedAt",
+        "type": "timestamp",
+        "null": true
+      }
+    ],
+    "indexes": [
+      {
+        "type": "unique",
+        "identifier": "uc_enrichment_target_type_value",
+        "columns": [
+          "type",
+          "normalizedValue"
+        ]
+      },
+      {
+        "type": "index",
+        "identifier": "ix_enrichment_target_last_enriched",
+        "columns": [
+          "lastEnrichedAt"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "table",
+    "name": "enrichment_result",
+    "columns": [
+      {
+        "name": "target",
+        "parentTable": "enrichment_target"
+      },
+      {
+        "name": "integration",
+        "parentTable": "enrichment_integration"
+      },
+      {
+        "name": "status",
+        "type": "smallint",
+        "default": 1
+      },
+      {
+        "name": "data",
+        "type": "json",
+        "null": true
+      },
+      {
+        "name": "summary",
+        "type": "json",
+        "null": true
+      },
+      {
+        "name": "confidence",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "error",
+        "type": "text",
+        "null": true
+      },
+      {
+        "name": "fetchedAt",
+        "type": "timestamp",
+        "null": true
+      },
+      {
+        "name": "expiresAt",
+        "type": "timestamp",
+        "null": true
+      }
+    ],
+    "indexes": [
+      {
+        "type": "unique",
+        "identifier": "uc_enrichment_result_target_integration",
+        "columns": [
+          "target",
+          "integration"
+        ]
+      },
+      {
+        "type": "index",
+        "identifier": "ix_enrichment_result_status_expires",
+        "columns": [
+          "status",
+          "expiresAt"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "table",
+    "name": "enrichment_job",
+    "columns": [
+      {
+        "name": "pcap",
+        "parentTable": "pcap",
+        "null": true
+      },
+      {
+        "name": "status",
+        "type": "smallint",
+        "default": 1
+      },
+      {
+        "name": "providers",
+        "type": "json",
+        "null": true
+      },
+      {
+        "name": "targetTypes",
+        "type": "json",
+        "null": true
+      },
+      {
+        "name": "totalTargets",
+        "type": "int",
+        "null": true
+      },
+      {
+        "name": "processedTargets",
+        "type": "int",
+        "default": 0
+      },
+      {
+        "name": "succeededTargets",
+        "type": "int",
+        "default": 0
+      },
+      {
+        "name": "failedTargets",
+        "type": "int",
+        "default": 0
+      },
+      {
+        "name": "startedAt",
+        "type": "timestamp",
+        "null": true
+      },
+      {
+        "name": "finishedAt",
+        "type": "timestamp",
+        "null": true
+      },
+      {
+        "name": "error",
+        "type": "text",
+        "null": true
+      }
+    ],
+    "indexes": [
+      {
+        "type": "index",
+        "identifier": "ix_enrichment_job_pcap_status",
+        "columns": [
+          "pcap",
+          "status"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "entities",
+    "entities": [
+      {
+        "table": "enrichment_integration",
+        "columns": [
+          "provider",
+          "identifier",
+          "name",
+          "description",
+          "enabled",
+          "alwaysExecute",
+          "requiresApiKey",
+          "configSchema",
+          "config",
+          "resultExcludedFields",
+          "dailyLimit",
+          "weeklyLimit",
+          "monthlyLimit"
+        ],
+        "values": [
+          [
+            1,
+            "maxmind_geolite2",
+            "MaxMind GeoLite2",
+            "Geolocalizacao por base local GeoLite2/GeoIP2 City em formato MMDB.",
+            0,
+            1,
+            0,
+            "[{\"name\":\"cityDatabasePath\",\"label\":\"Caminho da base City MMDB\",\"type\":\"text\",\"required\":false,\"secret\":false,\"help\":\"Opcional. Se vazio, a API usa automaticamente o arquivo *City*.mmdb mais recente em [root]/geoip.\"}]",
+            "{}",
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            2,
+            "team_cymru_asn",
+            "Team Cymru ASN",
+            "Mapeamento de IP para ASN, prefixo BGP, pais do prefixo, registro e data de alocacao.",
+            0,
+            1,
+            0,
+            "[{\"name\":\"timeoutSeconds\",\"label\":\"Timeout por consulta\",\"type\":\"number\",\"required\":false,\"secret\":false,\"default\":3,\"help\":\"Tempo maximo por consulta ao servico externo.\"}]",
+            "{}",
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            3,
+            "rdns",
+            "DNS reverso",
+            "Resolucao PTR para obter hostname associado a enderecos IP observados.",
+            0,
+            1,
+            0,
+            "[{\"name\":\"timeoutSeconds\",\"label\":\"Timeout por consulta\",\"type\":\"number\",\"required\":false,\"secret\":false,\"default\":2,\"help\":\"Tempo maximo para tentativa de resolucao reversa.\"},{\"name\":\"nameserver\",\"label\":\"Servidor DNS opcional\",\"type\":\"text\",\"required\":false,\"secret\":false,\"help\":\"Servidor DNS a ser usado quando houver configuracao especifica.\"}]",
+            "{}",
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            4,
+            "shodan_internetdb",
+            "Shodan InternetDB",
+            "Consulta gratuita ao InternetDB para portas, CPEs, hostnames e vulnerabilidades conhecidas por IP.",
+            0,
+            0,
+            0,
+            "[{\"name\":\"apiKey\",\"label\":\"API Key\",\"type\":\"password\",\"required\":false,\"secret\":true,\"help\":\"Opcional. Quando configurada e houver cota disponivel, a API usa Shodan Host API para retornar dados mais completos.\"},{\"name\":\"baseUrl\",\"label\":\"URL base InternetDB\",\"type\":\"text\",\"required\":false,\"secret\":false,\"default\":\"https://internetdb.shodan.io\",\"help\":\"Endpoint base do InternetDB usado como fallback gratuito.\"},{\"name\":\"hostApiBaseUrl\",\"label\":\"URL base Host API\",\"type\":\"text\",\"required\":false,\"secret\":false,\"default\":\"https://api.shodan.io\",\"help\":\"Endpoint base da API principal da Shodan.\"},{\"name\":\"timeoutSeconds\",\"label\":\"Timeout por consulta\",\"type\":\"number\",\"required\":false,\"secret\":false,\"default\":6,\"help\":\"Tempo maximo por consulta HTTP.\"}]",
+            "{}",
+            null,
+            null,
+            null,
+            100
+          ],
+          [
+            5,
+            "censys",
+            "Censys",
+            "Consulta opcional ao Censys Search API para contexto de hosts, servicos e certificados.",
+            0,
+            0,
+            1,
+            "[{\"name\":\"apiKey\",\"label\":\"API Key\",\"type\":\"password\",\"required\":true,\"secret\":true,\"help\":\"Personal Access Token da Censys Platform API.\"},{\"name\":\"baseUrl\",\"label\":\"URL base\",\"type\":\"text\",\"required\":false,\"secret\":false,\"default\":\"https://api.platform.censys.io/v3/global\",\"help\":\"Endpoint base da Censys Platform Global API.\"},{\"name\":\"timeoutSeconds\",\"label\":\"Timeout por consulta\",\"type\":\"number\",\"required\":false,\"secret\":false,\"default\":10,\"help\":\"Tempo maximo por consulta HTTP.\"}]",
+            "{}",
+            "[\"services.banner\",\"services.http.response.body\",\"services.screenshot\",\"services.tls.certificates\"]",
+            null,
+            null,
+            100
+          ],
+          [
+            6,
+            "abuseipdb",
+            "AbuseIPDB",
+            "Consulta de reputacao de IP, pontuacao de abuso e categorias reportadas.",
+            0,
+            0,
+            1,
+            "[{\"name\":\"apiKey\",\"label\":\"API Key\",\"type\":\"password\",\"required\":true,\"secret\":true,\"help\":\"Chave da API AbuseIPDB.\"},{\"name\":\"baseUrl\",\"label\":\"URL base\",\"type\":\"text\",\"required\":false,\"secret\":false,\"default\":\"https://api.abuseipdb.com/api/v2\",\"help\":\"Endpoint base da API AbuseIPDB v2.\"},{\"name\":\"maxAgeInDays\",\"label\":\"Janela de historico em dias\",\"type\":\"number\",\"required\":false,\"secret\":false,\"default\":90,\"help\":\"Parametro maxAgeInDays usado nas consultas.\"},{\"name\":\"verbose\",\"label\":\"Incluir reports\",\"type\":\"checkbox\",\"required\":false,\"secret\":false,\"default\":false,\"help\":\"Quando ativo, solicita reports detalhados. Mantemos desligado por padrao para reduzir payload.\"},{\"name\":\"timeoutSeconds\",\"label\":\"Timeout por consulta\",\"type\":\"number\",\"required\":false,\"secret\":false,\"default\":8,\"help\":\"Tempo maximo por consulta HTTP.\"}]",
+            "{}",
+            null,
+            1000,
+            null,
+            null
+          ]
+        ]
+      }
+    ]
+  }
+]
