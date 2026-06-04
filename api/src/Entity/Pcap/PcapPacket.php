@@ -14,7 +14,7 @@ class PcapPacket extends PcapChild {
     public int $offset;
     public int $capturedLen;
     public int $originalLen;
-    public ?PcapFlow $flow;
+    public ?string $flowKey = null;
     public ?string $srcIp;
     public ?string $dstIp;
     public ?int $srcPort = null;
@@ -27,13 +27,6 @@ class PcapPacket extends PcapChild {
     public ?int $tcpFlags = null;
     public ?int $icmpType = null;
     public ?int $icmpCode = null;
-
-    public function isEntity(string $field): ?string {
-        return match ($field) {
-            'flow' => PcapFlow::class,
-            default => parent::isEntity($field)
-        };
-    }
 
     protected function isDateTime(string $field): bool {
         return ($field === 'timestamp') || parent::isDateTime($field);

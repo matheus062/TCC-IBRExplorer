@@ -16,6 +16,8 @@ class PcapFlow extends PcapChild {
     public ?int $srcPort;
     public ?int $dstPort;
     public PcapProtocolType $protocol;
+    public ?int $icmpType = null;
+    public ?int $icmpCode = null;
     public int $packetCount;
     public BigDecimal $bytesTotal;
     public DateTime $startTimestamp;
