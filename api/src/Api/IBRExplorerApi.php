@@ -7,6 +7,9 @@ namespace IBRExplorer\Api;
 use DI\Container;
 use Exception;
 use IBRExplorer\Api\Action\Authorization\CreateAuthTokenAction;
+use IBRExplorer\Api\Action\Enrichment\EnrichmentFlowCapabilitiesAction;
+use IBRExplorer\Api\Action\Enrichment\EnrichmentFlowExecuteAction;
+use IBRExplorer\Api\Action\Enrichment\EnrichmentFlowReadAction;
 use IBRExplorer\Api\Action\Entity\EntityCreateAction;
 use IBRExplorer\Api\Action\Entity\EntityListAction;
 use IBRExplorer\Api\Action\Entity\EntityReadAction;
@@ -15,12 +18,16 @@ use IBRExplorer\Api\Action\Entity\EntityUpdateAction;
 use IBRExplorer\Api\Action\Password\PasswordChangeAction;
 use IBRExplorer\Api\Action\Password\PasswordForgotAction;
 use IBRExplorer\Api\Action\PcapFile\PcapFileConfirmUploadAction;
+use IBRExplorer\Api\Action\PcapFile\PcapFileRetryProcessingAction;
 use IBRExplorer\Api\Action\PcapFile\PcapFileStartUploadAction;
 use IBRExplorer\Api\Action\PcapFile\PcapFileUploadChunkAction;
+use IBRExplorer\Api\Action\Profile\ProfileImageUpdateAction;
+use IBRExplorer\Api\Action\Profile\ProfileReadAction;
 use IBRExplorer\Api\Action\System\OptionsAction;
 use IBRExplorer\Api\Enum\ActionMethod;
 use IBRExplorer\Api\Middleware\Authorization\Authorization;
 use IBRExplorer\Api\Middleware\ErrorHandler\ErrorHandler;
+use IBRExplorer\Api\Middleware\Permission\EnrichmentPermission;
 use IBRExplorer\Api\Middleware\Permission\PcapPermission;
 use IBRExplorer\Api\Middleware\Permission\UsersPermission;
 use IBRExplorer\Bootstrap\ApplicationBootstrap;
@@ -28,8 +35,14 @@ use IBRExplorer\Entity\Address\Address;
 use IBRExplorer\Entity\Address\City;
 use IBRExplorer\Entity\Address\Country;
 use IBRExplorer\Entity\Address\State;
+use IBRExplorer\Entity\Enrichment\EnrichmentIntegration;
+use IBRExplorer\Entity\Enrichment\EnrichmentJob;
+use IBRExplorer\Entity\Enrichment\EnrichmentResult;
+use IBRExplorer\Entity\Enrichment\EnrichmentTarget;
 use IBRExplorer\Entity\Entity;
 use IBRExplorer\Entity\Pcap\Pcap;
+use IBRExplorer\Entity\Pcap\PcapFlow;
+use IBRExplorer\Entity\Pcap\PcapPacket;
 use IBRExplorer\Entity\PcapFile\PcapFile;
 use IBRExplorer\Entity\User\User;
 use IBRExplorer\Repository\Address\AddressRepository;
@@ -37,6 +50,7 @@ use IBRExplorer\Repository\EntityRepository;
 use IBRExplorer\Repository\User\UserRepository;
 use IBRExplorer\Service\Address\CityService;
 use IBRExplorer\Service\Address\CountryService;
+use IBRExplorer\Service\Enrichment\EnrichmentTargetService;
 use IBRExplorer\Service\EntityService;
 use IBRExplorer\Service\Pcap\PcapFileService;
 use IBRExplorer\Service\Pcap\PcapService;
@@ -80,6 +94,7 @@ class IBRExplorerApi {
         $this->setSystemRoutes();
         $this->setAddressRoutes();
         $this->setUsersRoutes();
+        $this->setEnrichmentRoutes();
         $this->setPcapRoutes();
     }
 
@@ -93,6 +108,9 @@ class IBRExplorerApi {
             $password->post('/forgot', PasswordForgotAction::class);
             $password->put('/change', PasswordChangeAction::class);
         });
+
+        $this->app->get('/profile', ProfileReadAction::class);
+        $this->app->put('/profile/image', ProfileImageUpdateAction::class);
     }
 
     private function setEndpoint(
@@ -168,6 +186,55 @@ class IBRExplorerApi {
         );
     }
 
+    private function setEnrichmentRoutes(): void {
+        $this->entityCrudRoute(
+            '/enrichment/integration',
+            EnrichmentIntegration::class,
+            createAction: null,
+            permissionMiddleware: EnrichmentPermission::class
+        );
+        $this->entityCrudRoute(
+            '/enrichment/target',
+            EnrichmentTarget::class,
+            createAction: null,
+            updateAction: null,
+            permissionMiddleware: EnrichmentPermission::class
+        );
+        $this->entityCrudRoute(
+            '/enrichment/result',
+            EnrichmentResult::class,
+            createAction: null,
+            updateAction: null,
+            permissionMiddleware: EnrichmentPermission::class
+        );
+        $this->entityCrudRoute(
+            '/enrichment/job',
+            EnrichmentJob::class,
+            createAction: null,
+            updateAction: null,
+            permissionMiddleware: EnrichmentPermission::class
+        );
+
+        $this->setEndpoint(
+            ActionMethod::Get,
+            '/enrichment/flow/{id}',
+            EnrichmentFlowReadAction::class,
+            EnrichmentPermission::class
+        );
+        $this->setEndpoint(
+            ActionMethod::Get,
+            '/enrichment/flow/{id}/capabilities',
+            EnrichmentFlowCapabilitiesAction::class,
+            EnrichmentPermission::class
+        );
+        $this->setEndpoint(
+            ActionMethod::Post,
+            '/enrichment/flow/{id}',
+            EnrichmentFlowExecuteAction::class,
+            EnrichmentPermission::class
+        );
+    }
+
     private function setPcapRoutes(): void {
         $this->entityCrudRoute(
             '/pcap/file',
@@ -210,6 +277,7 @@ class IBRExplorerApi {
         $service = match ($entityClassName) {
             Country::class => new CountryService(),
             City::class => new CityService(),
+            EnrichmentTarget::class => new EnrichmentTargetService(),
             Pcap::class => new PcapService(),
             PcapFile::class => new PcapFileService(),
             default => new EntityService($entityClassName)
