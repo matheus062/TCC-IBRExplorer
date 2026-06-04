@@ -48,4 +48,12 @@ class User extends Entity {
         };
     }
 
+    /**
+     * @return string
+     * @noinspection PhpUnused
+     */
+    public function profileImageEntityPath(): string {
+        return 'user/' . $this->id . '/profile';
+    }
+
 }
