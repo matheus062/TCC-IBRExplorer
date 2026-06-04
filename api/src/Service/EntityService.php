@@ -226,11 +226,11 @@ class EntityService {
         return $this->error ?? [];
     }
 
-    protected function setError(array|string $error, StatusCode|int $code = StatusCode::InternalServerError): false {
+    protected function setError(array|string $error, StatusCode|int|string $code = StatusCode::InternalServerError): false {
         $this->error = $error;
-        $this->code = is_int($code)
-            ? (StatusCode::tryFrom($code) ?? StatusCode::InternalServerError)
-            : $code;
+        $this->code = $code instanceof StatusCode
+            ? $code
+            : (StatusCode::tryFrom((int)$code) ?? StatusCode::InternalServerError);
 
         return false;
     }
