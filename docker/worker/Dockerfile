@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libicu-dev \
     libpq-dev \
+    libcurl4-openssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN docker-php-ext-configure gd \
@@ -25,6 +26,7 @@ RUN docker-php-ext-install \
     mbstring \
     zip \
     gd \
+    curl \
     intl \
     opcache
 

@@ -27,6 +27,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./api:/var/www/api
+      - ./geoip:/var/www/api/geoip
       - vendor_data:/var/www/api/vendor
     depends_on:
       postgres:
@@ -48,6 +49,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./api:/var/www/api
+      - ./geoip:/var/www/api/geoip
       - vendor_data:/var/www/api/vendor
     depends_on:
       postgres:
