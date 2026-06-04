@@ -363,6 +363,52 @@ class PcapFileService extends EntityService implements HasProcessBeforeSave {
         }
     }
 
+    public function retryProcessing(PcapFile $file): array|false {
+        $this->setError([]);
+
+        try {
+            if ($file->status === PcapFileStatus::WaitingProcess) {
+                return [
+                    'id' => $file->id,
+                    'key' => $file->key,
+                    'status' => $file->status->value,
+                    'message' => 'Arquivo já está aguardando processamento.'
+                ];
+            } elseif ($file->status !== PcapFileStatus::Error) {
+                return $this->setError(
+                    'Apenas arquivos com erro de processamento podem ser reprocessados.',
+                    StatusCode::Conflict
+                );
+            } elseif (empty($file->file) || empty($file->fileSize)) {
+                return $this->setError(
+                    'Arquivo sem metadados suficientes para reprocessamento.',
+                    StatusCode::Conflict
+                );
+            }
+
+            $updated = parent::update($file->id, [
+                'status' => PcapFileStatus::WaitingProcess->value,
+                'processed' => '0.00',
+                'processStartedAt' => null,
+                'processFinishedAt' => null,
+                'processError' => null,
+            ]);
+
+            if (!$updated) {
+                return false;
+            }
+
+            return [
+                'id' => $file->id,
+                'key' => $file->key,
+                'status' => PcapFileStatus::WaitingProcess->value,
+                'message' => 'Arquivo reenviado para processamento.'
+            ];
+        } catch (Exception $e) {
+            return $this->setError($e->getMessage(), $e->getCode());
+        }
+    }
+
     public function claimNextForWorker(): PcapFile|false {
         $this->setError([]);
         $db = PostgreSQL::$instance;
