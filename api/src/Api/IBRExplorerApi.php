@@ -256,6 +256,27 @@ class IBRExplorerApi {
             PcapFileConfirmUploadAction::class,
             PcapPermission::class
         );
+        $this->setEndpoint(
+            ActionMethod::Post,
+            '/pcap/file/{key}/retry',
+            PcapFileRetryProcessingAction::class,
+            PcapPermission::class
+        );
+
+        $this->entityCrudRoute(
+            '/pcap/flow',
+            PcapFlow::class,
+            createAction: null,
+            updateAction: null,
+            permissionMiddleware: PcapPermission::class
+        );
+        $this->entityCrudRoute(
+            '/pcap/packet',
+            PcapPacket::class,
+            createAction: null,
+            updateAction: null,
+            permissionMiddleware: PcapPermission::class
+        );
     }
 
     /**
