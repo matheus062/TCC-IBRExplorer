@@ -75,6 +75,8 @@ class PostgreSQL {
             foreach ($params as $key => $param) {
                 if ($param instanceof BackedEnum) {
                     $params[$key] = $param->value;
+                } elseif (is_bool($param)) {
+                    $params[$key] = $param ? 'true' : 'false';
                 }
             }
         }
