@@ -22,7 +22,7 @@ use IBRExplorer\Validator\PcapFile\PcapFileValidator;
 class PcapFileService extends EntityService implements HasProcessBeforeSave {
 
     private const int LOCAL_UPLOAD_CHUNK_BYTES = 10485760;
-    private const int MAX_UPLOAD_FILE_BYTES = 52428800;
+    private const int MAX_UPLOAD_FILE_BYTES = 157286400;
 
     public function __construct() {
         parent::__construct(PcapFile::class, new PcapFileValidator());
@@ -206,7 +206,7 @@ class PcapFileService extends EntityService implements HasProcessBeforeSave {
                 }
 
                 return $this->setError(
-                    'O arquivo excede o limite máximo permitido de 50 MB.',
+                    'O arquivo excede o limite máximo permitido de 150 MB.',
                     StatusCode::BadRequest
                 );
             }
@@ -292,7 +292,7 @@ class PcapFileService extends EntityService implements HasProcessBeforeSave {
                 );
             } elseif ($declaredFileSize > self::MAX_UPLOAD_FILE_BYTES) {
                 return $this->setError(
-                    'O arquivo excede o limite máximo permitido de 50 MB.',
+                    'O arquivo excede o limite máximo permitido de 150 MB.',
                     StatusCode::BadRequest
                 );
             }
