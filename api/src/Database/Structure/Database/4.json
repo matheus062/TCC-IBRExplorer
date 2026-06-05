@@ -140,6 +140,22 @@
           "pcap",
           "protocol"
         ]
+      },
+      {
+        "type": "index",
+        "identifier": "ix_pcap_flow_pcap_srcip",
+        "columns": [
+          "pcap",
+          "srcIp"
+        ]
+      },
+      {
+        "type": "index",
+        "identifier": "ix_pcap_flow_pcap_dstip",
+        "columns": [
+          "pcap",
+          "dstIp"
+        ]
       }
     ]
   }

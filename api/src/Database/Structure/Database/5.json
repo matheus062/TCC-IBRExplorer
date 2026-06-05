@@ -143,6 +143,42 @@
           "pcap",
           "flowKey"
         ]
+      },
+      {
+        "type": "index",
+        "identifier": "ix_pcap_packet_pcap_flowkey_timestamp",
+        "columns": [
+          "pcap",
+          "flowKey",
+          "timestamp"
+        ]
+      },
+      {
+        "type": "index",
+        "identifier": "ix_pcap_packet_pcap_flowkey_srcip",
+        "columns": [
+          "pcap",
+          "flowKey",
+          "srcIp"
+        ]
+      },
+      {
+        "type": "index",
+        "identifier": "ix_pcap_packet_pcap_flowkey_dstip",
+        "columns": [
+          "pcap",
+          "flowKey",
+          "dstIp"
+        ]
+      },
+      {
+        "type": "index",
+        "identifier": "ix_pcap_packet_pcap_flowkey_protocol",
+        "columns": [
+          "pcap",
+          "flowKey",
+          "protocol"
+        ]
       }
     ]
   }
