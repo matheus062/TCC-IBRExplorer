@@ -15,7 +15,7 @@ class Email extends ValueObject {
     protected function validate(): bool {
         $email = filter_var($this->value, FILTER_SANITIZE_EMAIL);
 
-        if ($email === false) {
+        if (($email === false) || (filter_var($email, FILTER_VALIDATE_EMAIL) === false)) {
             $this->messages = EntityValidator::ENTITY_FIELD_INVALID;
         } else {
             $this->value = $email;
