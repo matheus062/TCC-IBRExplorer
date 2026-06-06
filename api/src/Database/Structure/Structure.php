@@ -283,7 +283,27 @@ class Structure {
                 $row['updatedBy'] ??= 1;
                 $this->db->insertRow($entity['table'], $row);
             }
+
+            $this->resetSequence($entity['table']);
         }
+    }
+
+    /**
+     * Reseta a sequence da coluna "id" para o valor máximo atual da tabela.
+     * Necessário no PostgreSQL ao inserir registros com IDs explícitos, pois
+     * a sequence não acompanha inserções manuais automaticamente (ao contrário do MySQL).
+     *
+     * @throws Exception
+     */
+    private function resetSequence(string $table): void {
+        $quotedTable = $this->quoteIdentifier($table);
+        $stmt = $this->db->prepareStatement("
+            SELECT setval(
+                pg_get_serial_sequence(:table, 'id'),
+                COALESCE((SELECT MAX(\"id\") FROM {$quotedTable}), 1)
+            )
+        ");
+        $stmt->execute([':table' => $table]);
     }
 
     private function shouldSkipSql(string $sql): bool {
