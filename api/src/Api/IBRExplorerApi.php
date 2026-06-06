@@ -18,6 +18,7 @@ use IBRExplorer\Api\Action\Entity\EntityUpdateAction;
 use IBRExplorer\Api\Action\Password\PasswordChangeAction;
 use IBRExplorer\Api\Action\Password\PasswordForgotAction;
 use IBRExplorer\Api\Action\PcapFile\PcapFileConfirmUploadAction;
+use IBRExplorer\Api\Action\PcapFile\PcapFileListPublicAction;
 use IBRExplorer\Api\Action\PcapFile\PcapFileRetryProcessingAction;
 use IBRExplorer\Api\Action\PcapFile\PcapFileStartUploadAction;
 use IBRExplorer\Api\Action\PcapFile\PcapFileUploadChunkAction;
@@ -236,6 +237,13 @@ class IBRExplorerApi {
     }
 
     private function setPcapRoutes(): void {
+        $this->setEndpoint(
+            ActionMethod::Get,
+            '/pcap/file/public',
+            PcapFileListPublicAction::class,
+            PcapPermission::class
+        );
+
         $this->entityCrudRoute(
             '/pcap/file',
             PcapFile::class,

@@ -137,7 +137,9 @@ class EntityRepository {
 
             if (!empty($childRelation)) {
                 if (!$getChildFields || empty($fields[$field]) || in_array($field, ['createdBy', 'updatedBy'])) {
-                    $fields[$field] = ['id', 'key', 'entityStatus'];
+                    $fields[$field] = in_array($field, ['createdBy', 'updatedBy'])
+                        ? ['id', 'key', 'entityStatus', 'name']
+                        : ['id', 'key', 'entityStatus'];
                 }
 
                 $childClass = $childRelation['class'];
