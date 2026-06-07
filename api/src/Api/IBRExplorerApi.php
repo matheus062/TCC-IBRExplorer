@@ -22,6 +22,7 @@ use IBRExplorer\Api\Action\PcapFile\PcapFileListPublicAction;
 use IBRExplorer\Api\Action\PcapFile\PcapFileRetryProcessingAction;
 use IBRExplorer\Api\Action\PcapFile\PcapFileStartUploadAction;
 use IBRExplorer\Api\Action\PcapFile\PcapFileUploadChunkAction;
+use IBRExplorer\Api\Action\PcapFile\PcapStatsAction;
 use IBRExplorer\Api\Action\Profile\ProfileImageUpdateAction;
 use IBRExplorer\Api\Action\Profile\ProfileReadAction;
 use IBRExplorer\Api\Action\System\OptionsAction;
@@ -241,6 +242,13 @@ class IBRExplorerApi {
             ActionMethod::Get,
             '/pcap/file/public',
             PcapFileListPublicAction::class,
+            PcapPermission::class
+        );
+
+        $this->setEndpoint(
+            ActionMethod::Get,
+            '/pcap/file/{id}/stats',
+            PcapStatsAction::class,
             PcapPermission::class
         );
 

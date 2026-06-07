@@ -24,9 +24,16 @@ class EnrichmentFlowExecuteAction extends EnrichmentFlowAction {
         $requestedProviders = $this->requestedProviders();
         $executions = [];
 
+        $requestedTargets = $this->requestedTargets();
+
         foreach ($capabilities as $capability) {
             /** @var EnrichmentIntegration $integration */
             $integration = $capability['integration'];
+
+            if (!empty($requestedTargets) && !in_array($capability['target']->id, $requestedTargets, true)) {
+                continue;
+            }
+
             $shouldExecute = empty($requestedProviders)
                 ? $capability['alwaysExecute'] && $capability['capable']
                 : in_array($integration->identifier, $requestedProviders, true);
@@ -66,6 +73,19 @@ class EnrichmentFlowExecuteAction extends EnrichmentFlowAction {
             'capabilities' => $this->capabilitiesPayload($capabilities, $targetObservations),
             'executions' => $executions,
         ]);
+    }
+
+    private function requestedTargets(): array {
+        $targets = $this->body['targets'] ?? [];
+
+        if (!is_array($targets)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(
+            fn($id) => (int)$id,
+            $targets
+        )));
     }
 
     private function requestedProviders(): array {

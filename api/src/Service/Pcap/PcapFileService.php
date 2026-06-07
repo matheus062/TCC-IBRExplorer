@@ -18,6 +18,7 @@ use IBRExplorer\Service\EntityService;
 use IBRExplorer\Service\Interface\HasProcessBeforeSave;
 use IBRExplorer\Storage\FileSystem;
 use IBRExplorer\Validator\PcapFile\PcapFileValidator;
+use PDO;
 
 class PcapFileService extends EntityService implements HasProcessBeforeSave {
 
@@ -521,6 +522,165 @@ class PcapFileService extends EntityService implements HasProcessBeforeSave {
         } catch (Exception $e) {
             return $this->setError($e->getMessage(), $e->getCode());
         }
+    }
+
+    public function getStats(int $fileId, int $userId): array|false {
+        $this->setError([]);
+        $db = PostgreSQL::$instance;
+
+        try {
+            $db->execute(
+                'SELECT p."id" FROM "pcap" p
+                 INNER JOIN "pcap_file" pf ON pf."id" = p."file"
+                 WHERE pf."id" = ? AND (pf."createdBy" = ? OR pf."visibility" = 2)
+                 LIMIT 1',
+                [$fileId, $userId]
+            );
+            $row = $db->getLastStatement()->fetch(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            return $this->setError($e->getMessage(), $e->getCode());
+        }
+
+        if (!$row) {
+            return $this->setError('Captura não localizada.', StatusCode::NotFound);
+        }
+
+        $pcapId = (int)$row['id'];
+
+        try {
+            return [
+                'protocols' => $this->queryProtocolDistribution($pcapId),
+                'topTalkers' => $this->queryTopTalkers($pcapId),
+                'packetSizes' => $this->queryPacketSizes($pcapId),
+                'timeline' => $this->queryTimeline($pcapId),
+            ];
+        } catch (Exception $e) {
+            return $this->setError($e->getMessage(), $e->getCode());
+        }
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function queryProtocolDistribution(int $pcapId): array {
+        $db = PostgreSQL::$instance;
+        $db->execute(
+            'SELECT "protocol", SUM("packetCount") AS packets, SUM("bytesTotal") AS bytes
+             FROM "pcap_flow"
+             WHERE "pcap" = ?
+             GROUP BY "protocol"
+             ORDER BY packets DESC',
+            [$pcapId]
+        );
+
+        return array_map(
+            fn(array $row) => [
+                'protocol' => (int)$row['protocol'],
+                'packets' => (int)$row['packets'],
+                'bytes' => (int)$row['bytes'],
+            ],
+            $db->getLastStatement()->fetchAll(PDO::FETCH_ASSOC)
+        );
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function queryTopTalkers(int $pcapId): array {
+        $db = PostgreSQL::$instance;
+        $db->execute(
+            'SELECT ip, SUM(packets) AS packets, SUM(bytes) AS bytes
+             FROM (
+                 SELECT "srcIp" AS ip, SUM("packetCount") AS packets, SUM("bytesTotal") AS bytes
+                 FROM "pcap_flow" WHERE "pcap" = ? GROUP BY "srcIp"
+                 UNION ALL
+                 SELECT "dstIp" AS ip, SUM("packetCount") AS packets, SUM("bytesTotal") AS bytes
+                 FROM "pcap_flow" WHERE "pcap" = ? GROUP BY "dstIp"
+             ) combined
+             GROUP BY ip
+             ORDER BY bytes DESC
+             LIMIT 10',
+            [$pcapId, $pcapId]
+        );
+
+        return array_map(
+            fn(array $row) => [
+                'ip' => $row['ip'],
+                'packets' => (int)$row['packets'],
+                'bytes' => (int)$row['bytes'],
+            ],
+            $db->getLastStatement()->fetchAll(PDO::FETCH_ASSOC)
+        );
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function queryPacketSizes(int $pcapId): array {
+        $db = PostgreSQL::$instance;
+        $db->execute(
+            'SELECT bucket, sort_order, COUNT(*) AS count
+             FROM (
+                 SELECT
+                     CASE
+                         WHEN "capturedLen" <= 64   THEN \'0–64b\'
+                         WHEN "capturedLen" <= 128  THEN \'65–128b\'
+                         WHEN "capturedLen" <= 256  THEN \'129–256b\'
+                         WHEN "capturedLen" <= 512  THEN \'257–512b\'
+                         WHEN "capturedLen" <= 1024 THEN \'513–1024b\'
+                         ELSE \'1025+\'
+                     END AS bucket,
+                     CASE
+                         WHEN "capturedLen" <= 64   THEN 1
+                         WHEN "capturedLen" <= 128  THEN 2
+                         WHEN "capturedLen" <= 256  THEN 3
+                         WHEN "capturedLen" <= 512  THEN 4
+                         WHEN "capturedLen" <= 1024 THEN 5
+                         ELSE 6
+                     END AS sort_order
+                 FROM "pcap_packet"
+                 WHERE "pcap" = ?
+             ) t
+             GROUP BY bucket, sort_order
+             ORDER BY sort_order',
+            [$pcapId]
+        );
+
+        return array_map(
+            fn(array $row) => [
+                'bucket' => $row['bucket'],
+                'count' => (int)$row['count'],
+            ],
+            $db->getLastStatement()->fetchAll(PDO::FETCH_ASSOC)
+        );
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function queryTimeline(int $pcapId): array {
+        $db = PostgreSQL::$instance;
+        $db->execute(
+            'SELECT
+                 TO_CHAR(DATE_TRUNC(\'minute\', "timestamp"), \'HH24:MI\') AS ts,
+                 COUNT(*) AS packets,
+                 SUM("capturedLen") AS bytes
+             FROM "pcap_packet"
+             WHERE "pcap" = ?
+             GROUP BY DATE_TRUNC(\'minute\', "timestamp")
+             ORDER BY DATE_TRUNC(\'minute\', "timestamp")
+             LIMIT 200',
+            [$pcapId]
+        );
+
+        return array_map(
+            fn(array $row) => [
+                'ts' => $row['ts'],
+                'packets' => (int)$row['packets'],
+                'bytes' => (int)$row['bytes'],
+            ],
+            $db->getLastStatement()->fetchAll(PDO::FETCH_ASSOC)
+        );
     }
 
 }
