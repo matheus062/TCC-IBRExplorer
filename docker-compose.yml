@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:18
     container_name: postgres_db
+    command: postgres -c max_wal_size=2GB
     ports:
       - "5433:5432" # Porta utilizada para acessar o DB do container
     environment:

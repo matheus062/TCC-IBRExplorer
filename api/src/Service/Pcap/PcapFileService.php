@@ -28,19 +28,6 @@ class PcapFileService extends EntityService implements HasProcessBeforeSave {
         parent::__construct(PcapFile::class, new PcapFileValidator());
     }
 
-    public function list(
-        array  $fields = ['id', 'key'],
-        array  $where = [],
-        array  $orderBy = ['id DESC'],
-        int    $limit = 15,
-        int    $page = 1,
-        string $search = ''
-    ): array|false {
-        $where['createdBy'] = PostgreSQL::$instance->getUser()->id;
-
-        return parent::list($fields, $where, $orderBy, $limit, $page, $search);
-    }
-
     public function listPublic(
         array  $fields = ['id', 'key'],
         array  $where = [],
@@ -50,6 +37,19 @@ class PcapFileService extends EntityService implements HasProcessBeforeSave {
         string $search = ''
     ): array|false {
         $where['visibility'] = PcapFileVisibility::Public;
+
+        return parent::list($fields, $where, $orderBy, $limit, $page, $search);
+    }
+
+    public function list(
+        array  $fields = ['id', 'key'],
+        array  $where = [],
+        array  $orderBy = ['id DESC'],
+        int    $limit = 15,
+        int    $page = 1,
+        string $search = ''
+    ): array|false {
+        $where['createdBy'] = PostgreSQL::$instance->getUser()->id;
 
         return parent::list($fields, $where, $orderBy, $limit, $page, $search);
     }
