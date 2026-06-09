@@ -37,12 +37,21 @@ class PcapWorker {
         $this->log('Worker iniciado.');
 
         do {
+            $this->recoverStalledFiles();
             $processedJob = $this->processNextPendingFile();
 
             if (!$processedJob && !$this->once) {
                 sleep($this->sleepSeconds);
             }
         } while (!$this->once);
+    }
+
+    private function recoverStalledFiles(): void {
+        $recovered = $this->pcapFileService->markStalledProcessingAsError(PCAP_WORKER_STALL_MINUTES);
+
+        if ($recovered > 0) {
+            $this->log('Recuperado(s) ' . $recovered . ' arquivo(s) travado(s) em processamento há mais de ' . PCAP_WORKER_STALL_MINUTES . ' minuto(s).');
+        }
     }
 
     private function log(string $message): void {

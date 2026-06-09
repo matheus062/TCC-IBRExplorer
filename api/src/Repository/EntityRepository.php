@@ -467,7 +467,6 @@ class EntityRepository {
 
                 continue;
             } elseif (!($childTemplate instanceof HasParentEntities) || !in_array($entity::class, $childTemplate->getParentEntities())) {
-                // TODO: Fazer a validação da existência das subEntidades no banco de dados (quando a entidade nao é filha)
                 $data[$field] = $value['id'] ?? null;
 
                 continue;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace IBRExplorer\Service\Pcap;
 
+use DateTime;
 use Exception;
 use IBRExplorer\Api\IBRExplorerApi;
 use IBRExplorer\Entity\Pcap\Pcap;
@@ -32,6 +33,11 @@ class PcapProcessingService {
         $this->headerReader = new PcapHeaderReader();
         $this->packetBatchWriter = new PcapPacketBatchWriter();
         $this->flowGenerationService = new PcapFlowGenerationService();
+    }
+
+    private function log(string $message): void {
+        $timestamp = (new DateTime())->format('Y-m-d H:i:s');
+        fwrite(STDOUT, '[' . $timestamp . '] ' . $message . PHP_EOL);
     }
 
     /**
@@ -63,11 +69,26 @@ class PcapProcessingService {
             throw new RuntimeException('O tamanho do arquivo em disco diverge do valor persistido.');
         }
 
+        $this->log('Arquivo #' . $pcapFile->id . ' validado. Tamanho: ' . $actualSize . ' bytes.');
+
         if (!$this->pcapService->cleanupPartialByFileId($pcapFile->id)) {
             throw new RuntimeException($this->pcapService->getErrorAsString());
         }
 
+        if (DEBUG) {
+            $this->log('Arquivo #' . $pcapFile->id . ': resíduos anteriores removidos.');
+        }
+
         $header = $this->headerReader->read($filePath);
+
+        if (DEBUG) {
+            $this->log(
+                'Arquivo #' . $pcapFile->id . ': header lido'
+                . ' — tipo=' . ($header['headerType'] ?? '?')
+                . ', linkType=' . ($header['linkType'] ?? '?')
+                . '.'
+            );
+        }
 
         $batch = [];
         $pcapInitialized = false;
@@ -84,6 +105,10 @@ class PcapProcessingService {
             'lastPacketNumber' => null,
         ];
 
+        $this->log('Arquivo #' . $pcapFile->id . ': iniciando streaming com tshark.');
+
+        $processStartTime = time();
+
         try {
             $this->parser->streamPackets($filePath, function (array $packet) use (
                 &$batch,
@@ -92,7 +117,8 @@ class PcapProcessingService {
                 &$summary,
                 $header,
                 $pcapFile,
-                $actualSize
+                $actualSize,
+                $processStartTime
             ): void {
                 if (!$pcapInitialized) {
                     if (
@@ -123,6 +149,7 @@ class PcapProcessingService {
                     }
 
                     $pcapInitialized = true;
+                    $this->log('Arquivo #' . $pcapFile->id . ': estrutura PCAP criada.');
                 }
 
                 $this->validateOffsetSequence($packet, $offsetValidation);
@@ -130,6 +157,13 @@ class PcapProcessingService {
                 $summary['startTimestamp'] ??= $packet['timestamp'];
                 $summary['endTimestamp'] = $packet['timestamp'];
                 $summary['packetsTotal']++;
+
+                if ((time() - $processStartTime) > PCAP_WORKER_MAX_PROCESS_SECONDS) {
+                    throw new RuntimeException(
+                        'Tempo máximo de processamento excedido (' . PCAP_WORKER_MAX_PROCESS_SECONDS . 's).'
+                        . ' Ajuste PCAP_WORKER_MAX_PROCESS_SECONDS se necessário.'
+                    );
+                }
                 $summary['capturedBytes'] += $packet['capturedLen'];
 
                 if (!empty($packet['protocolLabel'])) {
@@ -171,13 +205,19 @@ class PcapProcessingService {
                 $this->flushPackets($pcapFile, $batch, $actualSize);
             }
 
+            $this->log('Arquivo #' . $pcapFile->id . ': streaming concluído — ' . $summary['packetsTotal'] . ' pacotes.');
+
             $summary['protocols'] = array_values($summary['protocols']);
+
+            $this->log('Arquivo #' . $pcapFile->id . ': gerando flows.');
             $summary['flowsTotal'] = $this->flowGenerationService->generateForPcap($pcapFile->id);
+            $this->log('Arquivo #' . $pcapFile->id . ': ' . $summary['flowsTotal'] . ' flows gerados.');
 
             if (!$this->pcapService->finalizeParsedCapture($pcapFile, $summary)) {
                 throw new RuntimeException($this->pcapService->getErrorAsString());
             }
 
+            $this->log('Arquivo #' . $pcapFile->id . ': captura finalizada.');
             $this->pcapFileService->updateWorkerProgress($pcapFile->id, 99.00);
         } catch (Exception $e) {
             if ($pcapInitialized) {

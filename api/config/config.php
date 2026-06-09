@@ -37,3 +37,5 @@ define("PCAP_WORKER_POLL_SECONDS", max(1, (int)(getenv('PCAP_WORKER_POLL_SECONDS
 define("PCAP_PACKET_BATCH_SIZE", max(1, (int)(getenv('PCAP_PACKET_BATCH_SIZE') ?: 500)));
 define("PCAP_TSHARK_BIN", getenv('PCAP_TSHARK_BIN') ?: 'tshark');
 define("PCAP_TSHARK_TIMEOUT_SECONDS", max(1, (int)(getenv('PCAP_TSHARK_TIMEOUT_SECONDS') ?: 30)));
+define("PCAP_WORKER_MAX_PROCESS_SECONDS", max(1, (int)(getenv('PCAP_WORKER_MAX_PROCESS_SECONDS') ?: 900)));
+define("PCAP_WORKER_STALL_MINUTES", max(1, (int)(getenv('PCAP_WORKER_STALL_MINUTES') ?: 60)));

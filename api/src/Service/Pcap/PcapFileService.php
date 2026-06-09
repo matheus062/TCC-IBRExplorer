@@ -524,6 +524,44 @@ class PcapFileService extends EntityService implements HasProcessBeforeSave {
         }
     }
 
+    public function markStalledProcessingAsError(int $maxMinutes): int {
+        $now = new DateTime();
+        $cutoff = (clone $now)->modify('-' . $maxMinutes . ' minutes')->format('Y-m-d H:i:s');
+        $nowStr = $now->format('Y-m-d H:i:s');
+        $this->setError([]);
+        $db = PostgreSQL::$instance;
+
+        try {
+            $db->execute('
+                UPDATE "pcap_file"
+                SET
+                    "status" = ?,
+                    "processFinishedAt" = ?,
+                    "processError" = ?,
+                    "updatedAt" = ?,
+                    "updatedBy" = ?
+                WHERE "entityStatus" = ?
+                  AND "status" = ?
+                  AND "processStartedAt" < ?
+            ', [
+                PcapFileStatus::Error->value,
+                $nowStr,
+                'Processamento interrompido: worker encerrou inesperadamente.',
+                $nowStr,
+                $db->getUser()->id,
+                EntityStatus::Active->value,
+                PcapFileStatus::Processing->value,
+                $cutoff,
+            ]);
+
+            return (int)($db->getLastStatement()?->rowCount() ?? 0);
+        } catch (Exception $e) {
+            $this->setError($e->getMessage(), $e->getCode());
+
+            return 0;
+        }
+    }
+
     public function getStats(int $fileId, int $userId): array|false {
         $this->setError([]);
         $db = PostgreSQL::$instance;
