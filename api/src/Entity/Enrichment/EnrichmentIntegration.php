@@ -52,40 +52,6 @@ class EnrichmentIntegration extends Entity {
         $this->decryptSecrets();
     }
 
-    public function isValueObject(string $field): ?string {
-        return match ($field) {
-            'configSchema', 'config' => JsonField::class,
-            'resultExcludedFields' => SimpleArray::class,
-            default => parent::isValueObject($field)
-        };
-    }
-
-    public function jsonSerialize(bool $database = false): array {
-        $data = parent::jsonSerialize($database);
-
-        if (!$database) {
-            return $this->maskSecretsForFrontend($data);
-        }
-
-        return $this->encryptSecretsForDatabase($data);
-    }
-
-    protected function isEnum(string $field): ?string {
-        return match ($field) {
-            'provider' => EnrichmentProviderType::class,
-            default => parent::isEnum($field)
-        };
-    }
-
-    protected function isDateTime(string $field): bool {
-        return in_array($field, [
-                'dailyResetAt',
-                'weeklyResetAt',
-                'monthlyResetAt',
-                'lastUsedAt'
-            ], true) || parent::isDateTime($field);
-    }
-
     private function decryptSecrets(): void {
         if (empty($this->configSecrets)) {
             $this->configSecrets = null;
@@ -106,6 +72,44 @@ class EnrichmentIntegration extends Entity {
         }
 
         $this->configSecrets = null;
+    }
+
+    public function isValueObject(string $field): ?string {
+        return match ($field) {
+            'configSchema', 'config' => JsonField::class,
+            'resultExcludedFields' => SimpleArray::class,
+            default => parent::isValueObject($field)
+        };
+    }
+
+    public function jsonSerialize(bool $database = false): array {
+        $data = parent::jsonSerialize($database);
+
+        if (!$database) {
+            return $this->maskSecretsForFrontend($data);
+        }
+
+        return $this->encryptSecretsForDatabase($data);
+    }
+
+    private function maskSecretsForFrontend(array $data): array {
+        unset($data['configSecrets']);
+
+        if (empty($data['config']) || empty($data['configSchema'])) {
+            return $data;
+        }
+
+        foreach ($data['configSchema'] as $fieldSchema) {
+            $fieldName = $fieldSchema['name'] ?? null;
+
+            if (empty($fieldName) || empty($fieldSchema['secret']) || !array_key_exists($fieldName, $data['config'])) {
+                continue;
+            }
+
+            $data['config'][$fieldName] = empty($data['config'][$fieldName]) ? '' : '********';
+        }
+
+        return $data;
     }
 
     private function encryptSecretsForDatabase(array $data): array {
@@ -147,24 +151,20 @@ class EnrichmentIntegration extends Entity {
         return $data;
     }
 
-    private function maskSecretsForFrontend(array $data): array {
-        unset($data['configSecrets']);
+    protected function isEnum(string $field): ?string {
+        return match ($field) {
+            'provider' => EnrichmentProviderType::class,
+            default => parent::isEnum($field)
+        };
+    }
 
-        if (empty($data['config']) || empty($data['configSchema'])) {
-            return $data;
-        }
-
-        foreach ($data['configSchema'] as $fieldSchema) {
-            $fieldName = $fieldSchema['name'] ?? null;
-
-            if (empty($fieldName) || empty($fieldSchema['secret']) || !array_key_exists($fieldName, $data['config'])) {
-                continue;
-            }
-
-            $data['config'][$fieldName] = empty($data['config'][$fieldName]) ? '' : '********';
-        }
-
-        return $data;
+    protected function isDateTime(string $field): bool {
+        return in_array($field, [
+                'dailyResetAt',
+                'weeklyResetAt',
+                'monthlyResetAt',
+                'lastUsedAt'
+            ], true) || parent::isDateTime($field);
     }
 
 }
