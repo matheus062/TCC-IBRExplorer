@@ -52,6 +52,7 @@ use IBRExplorer\Repository\EntityRepository;
 use IBRExplorer\Repository\User\UserRepository;
 use IBRExplorer\Service\Address\CityService;
 use IBRExplorer\Service\Address\CountryService;
+use IBRExplorer\Service\Enrichment\EnrichmentIntegrationService;
 use IBRExplorer\Service\Enrichment\EnrichmentTargetService;
 use IBRExplorer\Service\EntityService;
 use IBRExplorer\Service\Pcap\PcapFileService;
@@ -314,6 +315,7 @@ class IBRExplorerApi {
         $service = match ($entityClassName) {
             Country::class => new CountryService(),
             City::class => new CityService(),
+            EnrichmentIntegration::class => new EnrichmentIntegrationService(),
             EnrichmentTarget::class => new EnrichmentTargetService(),
             Pcap::class => new PcapService(),
             PcapFile::class => new PcapFileService(),

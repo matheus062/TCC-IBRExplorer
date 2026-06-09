@@ -35,11 +35,6 @@ class PcapProcessingService {
         $this->flowGenerationService = new PcapFlowGenerationService();
     }
 
-    private function log(string $message): void {
-        $timestamp = (new DateTime())->format('Y-m-d H:i:s');
-        fwrite(STDOUT, '[' . $timestamp . '] ' . $message . PHP_EOL);
-    }
-
     /**
      * @throws Exception
      */
@@ -226,6 +221,11 @@ class PcapProcessingService {
 
             throw $e;
         }
+    }
+
+    private function log(string $message): void {
+        $timestamp = (new DateTime())->format('Y-m-d H:i:s');
+        fwrite(STDOUT, '[' . $timestamp . '] ' . $message . PHP_EOL);
     }
 
     private function validateOffsetSequence(array $packet, array &$state): void {

@@ -19,6 +19,7 @@ define("POSTGRES_DATABASE", getenv('POSTGRES_DATABASE'));
 define("TOKEN_KEY", getenv('TOKEN_KEY'));
 define("TOKEN_ISSUER", getenv('TOKEN_ISSUER'));
 define("PASSWORD_PEPPER", getenv('PASSWORD_PEPPER'));
+define("ENCRYPTION_KEY", getenv('ENCRYPTION_KEY'));
 
 define("APP_EMAIL_URL", getenv('APP_EMAIL_URL'));
 

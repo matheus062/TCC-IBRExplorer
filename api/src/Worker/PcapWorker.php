@@ -46,17 +46,17 @@ class PcapWorker {
         } while (!$this->once);
     }
 
+    private function log(string $message): void {
+        $timestamp = (new DateTime())->format('Y-m-d H:i:s');
+        fwrite(STDOUT, '[' . $timestamp . '] ' . $message . PHP_EOL);
+    }
+
     private function recoverStalledFiles(): void {
         $recovered = $this->pcapFileService->markStalledProcessingAsError(PCAP_WORKER_STALL_MINUTES);
 
         if ($recovered > 0) {
             $this->log('Recuperado(s) ' . $recovered . ' arquivo(s) travado(s) em processamento há mais de ' . PCAP_WORKER_STALL_MINUTES . ' minuto(s).');
         }
-    }
-
-    private function log(string $message): void {
-        $timestamp = (new DateTime())->format('Y-m-d H:i:s');
-        fwrite(STDOUT, '[' . $timestamp . '] ' . $message . PHP_EOL);
     }
 
     private function processNextPendingFile(): bool {

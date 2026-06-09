@@ -46,6 +46,11 @@
         "null": true
       },
       {
+        "name": "configSecrets",
+        "type": "text",
+        "null": true
+      },
+      {
         "name": "resultExcludedFields",
         "type": "json",
         "null": true

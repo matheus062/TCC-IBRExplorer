@@ -7,8 +7,10 @@ namespace IBRExplorer\Entity\Enrichment;
 use DateTime;
 use IBRExplorer\Entity\Entity;
 use IBRExplorer\Entity\Enum\Enrichment\EnrichmentProviderType;
+use IBRExplorer\Util\EncryptionService;
 use IBRExplorer\Util\JsonField;
 use IBRExplorer\Util\SimpleArray;
+use Throwable;
 
 class EnrichmentIntegration extends Entity {
 
@@ -21,6 +23,7 @@ class EnrichmentIntegration extends Entity {
     public bool $requiresApiKey;
     public JsonField $configSchema;
     public ?JsonField $config;
+    public ?string $configSecrets;
     public ?SimpleArray $resultExcludedFields;
     public ?int $dailyLimit;
     public ?int $weeklyLimit;
@@ -45,6 +48,8 @@ class EnrichmentIntegration extends Entity {
             $this->weeklyUsed ??= 0;
             $this->monthlyUsed ??= 0;
         }
+
+        $this->decryptSecrets();
     }
 
     public function isValueObject(string $field): ?string {
@@ -58,21 +63,11 @@ class EnrichmentIntegration extends Entity {
     public function jsonSerialize(bool $database = false): array {
         $data = parent::jsonSerialize($database);
 
-        if ($database || empty($data['config']) || empty($data['configSchema'])) {
-            return $data;
+        if (!$database) {
+            return $this->maskSecretsForFrontend($data);
         }
 
-        foreach ($data['configSchema'] as $fieldSchema) {
-            $fieldName = $fieldSchema['name'] ?? null;
-
-            if (empty($fieldName) || empty($fieldSchema['secret']) || !array_key_exists($fieldName, $data['config'])) {
-                continue;
-            }
-
-            $data['config'][$fieldName] = empty($data['config'][$fieldName]) ? '' : '********';
-        }
-
-        return $data;
+        return $this->encryptSecretsForDatabase($data);
     }
 
     protected function isEnum(string $field): ?string {
@@ -89,6 +84,87 @@ class EnrichmentIntegration extends Entity {
                 'monthlyResetAt',
                 'lastUsedAt'
             ], true) || parent::isDateTime($field);
+    }
+
+    private function decryptSecrets(): void {
+        if (empty($this->configSecrets)) {
+            $this->configSecrets = null;
+            return;
+        }
+
+        try {
+            $decrypted = EncryptionService::decrypt($this->configSecrets);
+            $secrets = json_decode($decrypted, true) ?? [];
+
+            if (!empty($secrets) && isset($this->config)) {
+                $merged = array_merge($this->config->getValue(), $secrets);
+                $merged_field = new JsonField();
+                $merged_field->setValue($merged);
+                $this->config = $merged_field;
+            }
+        } catch (Throwable) {
+        }
+
+        $this->configSecrets = null;
+    }
+
+    private function encryptSecretsForDatabase(array $data): array {
+        $config = $data['config'] ?? null;
+        $configSchema = $data['configSchema'] ?? null;
+
+        if (empty($config) || empty($configSchema)) {
+            return $data;
+        }
+
+        $secrets = [];
+
+        foreach ($configSchema as $fieldSchema) {
+            $fieldName = $fieldSchema['name'] ?? null;
+
+            if (empty($fieldName) || empty($fieldSchema['secret'])) {
+                continue;
+            }
+
+            if (array_key_exists($fieldName, $config) && $config[$fieldName] !== '' && $config[$fieldName] !== null) {
+                $secrets[$fieldName] = $config[$fieldName];
+                unset($config[$fieldName]);
+            }
+        }
+
+        $data['config'] = $config;
+
+        if (empty($secrets)) {
+            $data['configSecrets'] = null;
+            return $data;
+        }
+
+        try {
+            $data['configSecrets'] = EncryptionService::encrypt(json_encode($secrets));
+        } catch (Throwable) {
+            $data['configSecrets'] = null;
+        }
+
+        return $data;
+    }
+
+    private function maskSecretsForFrontend(array $data): array {
+        unset($data['configSecrets']);
+
+        if (empty($data['config']) || empty($data['configSchema'])) {
+            return $data;
+        }
+
+        foreach ($data['configSchema'] as $fieldSchema) {
+            $fieldName = $fieldSchema['name'] ?? null;
+
+            if (empty($fieldName) || empty($fieldSchema['secret']) || !array_key_exists($fieldName, $data['config'])) {
+                continue;
+            }
+
+            $data['config'][$fieldName] = empty($data['config'][$fieldName]) ? '' : '********';
+        }
+
+        return $data;
     }
 
 }
