@@ -47,5 +47,8 @@ fi
 echo "Updating database structure..."
 php config/update-structure.php
 
+echo "Seeding admin user..."
+php config/seed-admin.php
+
 echo "Starting PHP-FPM..."
 exec php-fpm -F
