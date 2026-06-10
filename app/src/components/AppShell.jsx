@@ -1,3 +1,4 @@
+import {useEffect, useState} from 'react'
 import {getUserAvatarSrc, getUserEmail, getUserInitials} from '../lib/formatters'
 
 const PAINEL_ITEMS = [
@@ -12,7 +13,7 @@ const EXPLORAR_ITEMS = [
 
 const ADMIN_NAV_ITEMS = [
     {label: 'Usuários', path: '/admin/users'},
-    {label: 'Configurações de Enriquecimento', path: '/admin/enrichment'},
+    {label: 'Enriquecimento', path: '/admin/enrichment'},
 ]
 
 function isActivePath(currentPath, targetPath) {
@@ -42,20 +43,43 @@ function NavSection({label, items, currentPath, onNavigate}) {
 }
 
 function AppShell({currentPath, onNavigate, onLogout, session, notice, onDismiss, pageTitle, children}) {
+    const [sidebarOpen, setSidebarOpen] = useState(false)
+
+    useEffect(() => {
+        setSidebarOpen(false)
+    }, [currentPath])
+
     const isAdmin = session?.user?.roles?.some((role) => role.type === 2)
     const avatarSrc = getUserAvatarSrc(session?.user)
     const userName = session?.user?.name ?? 'Usuário autenticado'
     const userEmail = getUserEmail(session?.user)
 
     return (
-        <div className="app-shell">
+        <div className={`app-shell${sidebarOpen ? ' sidebar-open' : ''}`}>
+            {sidebarOpen && (
+                <div
+                    className="sidebar-overlay"
+                    onClick={() => setSidebarOpen(false)}
+                    role="presentation"
+                />
+            )}
+
             <aside className="app-sidebar">
-                <button className="brand-lockup" onClick={() => onNavigate('/')}>
-                    <span className="brand-lockup__title">IBRExplorer</span>
-                    <span className="brand-lockup__copy">
-                        Upload, indexação e exploração de capturas PCAP/PCAPNG.
-                    </span>
-                </button>
+                <div className="sidebar-top-row">
+                    <button className="brand-lockup" onClick={() => onNavigate('/')}>
+                        <span className="brand-lockup__title">IBRExplorer</span>
+                        <span className="brand-lockup__copy">
+                            Upload, indexação e exploração de capturas PCAP/PCAPNG.
+                        </span>
+                    </button>
+                    <button
+                        className="sidebar-close-btn"
+                        onClick={() => setSidebarOpen(false)}
+                        aria-label="Fechar menu"
+                    >
+                        ×
+                    </button>
+                </div>
 
                 <nav className="app-nav" aria-label="Principal">
                     <NavSection label="Painel" items={PAINEL_ITEMS} currentPath={currentPath} onNavigate={onNavigate}/>
@@ -78,6 +102,16 @@ function AppShell({currentPath, onNavigate, onLogout, session, notice, onDismiss
 
             <div className="app-frame">
                 <header className="app-topbar">
+                    <button
+                        className="hamburger-btn"
+                        onClick={() => setSidebarOpen(true)}
+                        aria-label="Abrir menu"
+                    >
+                        <span/>
+                        <span/>
+                        <span/>
+                    </button>
+
                     <h1 className="app-topbar__title">{pageTitle ?? 'IBRExplorer'}</h1>
 
                     <button

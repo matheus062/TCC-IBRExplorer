@@ -1,5 +1,4 @@
 function PasswordResetPage({
-                               token,
                                password,
                                confirmPassword,
                                loading,
@@ -20,21 +19,10 @@ function PasswordResetPage({
                 <span className="auth-hero__eyebrow">Redefinição de senha</span>
                 <h1>Defina uma nova senha.</h1>
                 <p>
-                    Use o token recebido na solicitação de recuperação para criar uma nova credencial de acesso
-                    ao workspace do IBRExplorer.
+                    Escolha uma nova senha com no mínimo 8 caracteres e ao menos um caractere especial.
                 </p>
 
                 <form className="auth-form" onSubmit={handleSubmit}>
-                    <label className="field">
-                        <span>Token de redefinição</span>
-                        <textarea
-                            value={token}
-                            onChange={(event) => onPasswordChange('token', event.target.value)}
-                            rows="4"
-                            placeholder="Cole aqui o token recebido"
-                        />
-                    </label>
-
                     <label className="field">
                         <span>Nova senha</span>
                         <input

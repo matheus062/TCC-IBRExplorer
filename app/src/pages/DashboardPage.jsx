@@ -13,11 +13,7 @@ function DashboardPage({captures, capturesState, session, onNavigate, onRefresh}
             <section className="hero-banner dashboard-hero">
                 <div>
                     <span className="hero-banner__eyebrow">Visão geral</span>
-                    <h2>Bem-vindo de volta, {session?.user?.name ?? 'analista'}.</h2>
-                    <p>
-                        Acompanhe o estado das capturas PCAP/PCAPNG, revise arquivos processados e acesse
-                        detalhes de flows para investigar o tráfego observado.
-                    </p>
+                    <h2>Olá, {session?.user?.name ?? 'analista'}.</h2>
                 </div>
 
                 <div className="hero-banner__actions">
@@ -34,25 +30,25 @@ function DashboardPage({captures, capturesState, session, onNavigate, onRefresh}
                 <MetricCard
                     label="Capturas"
                     value={capturesState.total ?? captures.length}
-                    hint="Total conhecido pela API"
+                    hint="Total no sistema"
                     accent="cyan"
                 />
                 <MetricCard
                     label="Em andamento"
                     value={queued}
-                    hint="Aguardando fila ou em parse"
+                    hint="Na fila ou em processamento"
                     accent="amber"
                 />
                 <MetricCard
                     label="Processadas"
                     value={processed}
-                    hint="Pipeline concluido"
+                    hint="Parsing concluído"
                     accent="green"
                 />
                 <MetricCard
                     label="Erros"
                     value={errors}
-                    hint="Arquivos que exigem reprocessamento"
+                    hint="Falha no processamento"
                     accent="red"
                 />
             </section>

@@ -318,6 +318,10 @@ export function listPcapPackets(token, {pcapId, flowId, flowKey, limit = 16, pag
     })
 }
 
+export function getPcapStats(token, captureId) {
+    return apiRequest(`/pcap/file/${captureId}/stats`, {token})
+}
+
 export function retryPcapProcessing(token, captureKey) {
     return apiRequest(`/pcap/file/${captureKey}/retry`, {
         method: 'POST',
@@ -330,11 +334,15 @@ export function getEnrichmentFlow(token, flowId) {
     return apiRequest(`/enrichment/flow/${flowId}`, {token})
 }
 
-export function executeEnrichmentFlow(token, flowId, providers = []) {
+export function executeEnrichmentFlow(token, flowId, providers = [], targetIds = []) {
+    const body = {}
+    if (providers.length > 0) body.providers = providers
+    if (targetIds.length > 0) body.targets = targetIds
+
     return apiRequest(`/enrichment/flow/${flowId}`, {
         method: 'POST',
         token,
-        body: providers.length > 0 ? {providers} : {},
+        body,
     })
 }
 

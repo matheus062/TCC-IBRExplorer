@@ -1,10 +1,25 @@
 import {useEffect, useMemo, useState} from 'react'
 import {createPortal} from 'react-dom'
+import {
+    Area,
+    AreaChart,
+    Bar,
+    BarChart,
+    CartesianGrid,
+    Cell,
+    Legend,
+    Pie,
+    PieChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from 'recharts'
 import EmptyState from '../components/EmptyState'
 import MetricCard from '../components/MetricCard'
 import PacketListPanel from '../components/PacketListPanel'
 import StatusBadge from '../components/StatusBadge'
-import {listPcapFlows} from '../lib/api'
+import {getPcapStats, listPcapFlows} from '../lib/api'
 import {
     formatBytes,
     formatDateTime,
@@ -15,6 +30,43 @@ import {
     getFileLabel,
     getProtocolLabel,
 } from '../lib/formatters'
+
+const PROTOCOL_NAMES = {
+    0: 'HOPOPT', 1: 'ICMP', 2: 'IGMP', 6: 'TCP', 17: 'UDP',
+    41: 'IPv6', 47: 'GRE', 50: 'ESP', 58: 'ICMPv6', 255: 'Other',
+}
+
+const PROTOCOL_COLORS = [
+    '#4596b6', '#f4bc5f', '#93e5b2', '#c67edc',
+    '#e07878', '#5ec9a8', '#e0a050', '#7893a3',
+]
+
+const CHART_TOOLTIP_STYLE = {
+    background: 'rgba(6, 15, 22, 0.96)',
+    border: '1px solid rgba(127, 155, 173, 0.22)',
+    borderRadius: '10px',
+    color: '#dfe9ef',
+    fontSize: '0.82rem',
+}
+
+const CHART_AXIS_STYLE = {fill: '#7893a3', fontSize: '0.75rem'}
+const CHART_GRID = {strokeDasharray: '3 3', stroke: 'rgba(127, 155, 173, 0.1)'}
+
+function ChartPanel({eyebrow, title, children, isEmpty}) {
+    return (
+        <section className="panel chart-panel">
+            <div className="panel__header">
+                <div>
+                    <span className="panel__eyebrow">{eyebrow}</span>
+                    <h3>{title}</h3>
+                </div>
+            </div>
+            {isEmpty ? (
+                <p className="panel__feedback">Sem dados suficientes.</p>
+            ) : children}
+        </section>
+    )
+}
 
 const FLOW_PAGE_SIZE = 12
 const FILTER_CACHE_TTL_MS = 1000 * 60 * 60 * 24
@@ -124,6 +176,7 @@ function CaptureDetailPage({
     const [flowPage, setFlowPage] = useState(initialFlowState.page ?? 1)
     const [flowsState, setFlowsState] = useState(EMPTY_LIST_STATE)
     const [isFlowFiltersOpen, setIsFlowFiltersOpen] = useState(false)
+    const [stats, setStats] = useState(null)
 
     const pcap = capture?.pcap ?? null
     const pcapId = pcap?.id ?? null
@@ -197,6 +250,24 @@ function CaptureDetailPage({
             ignore = true
         }
     }, [flowPage, flowQuery, onApiFailure, pcapId, token])
+
+    useEffect(() => {
+        if (!token || !routeCaptureId || !pcapId) return
+
+        let ignore = false
+
+        getPcapStats(token, routeCaptureId)
+            .then(data => {
+                if (!ignore) setStats(data)
+            })
+            .catch(() => {
+                if (!ignore) setStats(null)
+            })
+
+        return () => {
+            ignore = true
+        }
+    }, [token, routeCaptureId, pcapId])
 
     if (isLoading) {
         return (
@@ -298,15 +369,141 @@ function CaptureDetailPage({
                 <>
                     <section className="metrics-grid">
                         <MetricCard label="Progresso" value={formatRelativePercent(capture.processed)}
-                                    hint="Percentual informado pela API" accent="amber"/>
-                        <MetricCard label="Pacotes" value={pcap?.packetsTotal ?? 0} hint="Contagem agregada da captura"
+                                    hint="Progresso do parsing" accent="amber"/>
+                        <MetricCard label="Pacotes" value={pcap?.packetsTotal ?? 0} hint="Total de pacotes"
                                     accent="cyan"/>
-                        <MetricCard label="Flows" value={pcap?.flowsTotal ?? 0} hint="Agrupamentos de comunicação"
+                        <MetricCard label="Flows" value={pcap?.flowsTotal ?? 0} hint="Fluxos direcionais"
                                     accent="green"/>
                         <MetricCard label="Bytes capturados"
                                     value={formatBytes(pcap?.capturedBytes ?? capture.fileSize)}
-                                    hint="Volume atual conhecido" accent="red"/>
+                                    hint="Bytes capturados" accent="red"/>
                     </section>
+
+                    {stats ? (
+                        <div className="pcap-charts-grid">
+                            <ChartPanel eyebrow="Flows" title="Protocolos" isEmpty={!stats.protocols?.length}>
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <PieChart>
+                                        <Pie
+                                            data={stats.protocols.map(p => ({
+                                                ...p,
+                                                name: PROTOCOL_NAMES[p.protocol] ?? `Proto ${p.protocol}`,
+                                            }))}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={55}
+                                            outerRadius={85}
+                                            paddingAngle={2}
+                                            dataKey="packets"
+                                            nameKey="name"
+                                        >
+                                            {stats.protocols.map((p, i) => (
+                                                <Cell
+                                                    key={p.protocol}
+                                                    fill={PROTOCOL_COLORS[i % PROTOCOL_COLORS.length]}
+                                                />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip
+                                            contentStyle={CHART_TOOLTIP_STYLE}
+                                            formatter={(v, name) => [v.toLocaleString('pt-BR'), name]}
+                                        />
+                                        <Legend
+                                            iconType="circle"
+                                            iconSize={8}
+                                            wrapperStyle={{fontSize: '0.78rem', color: '#a9bcc8'}}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </ChartPanel>
+
+                            <ChartPanel eyebrow="IPs" title="Top Talkers" isEmpty={!stats.topTalkers?.length}>
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <BarChart
+                                        layout="vertical"
+                                        data={stats.topTalkers.slice(0, 6)}
+                                        margin={{left: 8, right: 16, top: 4, bottom: 4}}
+                                    >
+                                        <CartesianGrid {...CHART_GRID} horizontal={false}/>
+                                        <XAxis
+                                            type="number"
+                                            tick={CHART_AXIS_STYLE}
+                                            tickFormatter={v => formatBytes(v)}
+                                            width={60}
+                                        />
+                                        <YAxis
+                                            type="category"
+                                            dataKey="ip"
+                                            tick={CHART_AXIS_STYLE}
+                                            width={112}
+                                        />
+                                        <Tooltip
+                                            contentStyle={CHART_TOOLTIP_STYLE}
+                                            formatter={(v, name) => [
+                                                name === 'bytes' ? formatBytes(v) : v.toLocaleString('pt-BR'),
+                                                name === 'bytes' ? 'Bytes' : 'Pacotes',
+                                            ]}
+                                        />
+                                        <Bar dataKey="bytes" fill="#4596b6" radius={[0, 4, 4, 0]} maxBarSize={14}/>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </ChartPanel>
+
+                            <ChartPanel eyebrow="Pacotes" title="Distribuição de tamanho"
+                                        isEmpty={!stats.packetSizes?.length}>
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <BarChart
+                                        data={stats.packetSizes}
+                                        margin={{left: 0, right: 8, top: 4, bottom: 4}}
+                                    >
+                                        <CartesianGrid {...CHART_GRID} vertical={false}/>
+                                        <XAxis dataKey="bucket" tick={CHART_AXIS_STYLE}/>
+                                        <YAxis tick={CHART_AXIS_STYLE} tickFormatter={v => v.toLocaleString('pt-BR')}/>
+                                        <Tooltip
+                                            contentStyle={CHART_TOOLTIP_STYLE}
+                                            formatter={(v) => [v.toLocaleString('pt-BR'), 'Pacotes']}
+                                        />
+                                        <Bar dataKey="count" fill="#f4bc5f" radius={[4, 4, 0, 0]} maxBarSize={40}/>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </ChartPanel>
+
+                            <ChartPanel eyebrow="Timeline" title="Atividade por minuto"
+                                        isEmpty={!stats.timeline?.length}>
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <AreaChart
+                                        data={stats.timeline}
+                                        margin={{left: 0, right: 8, top: 4, bottom: 4}}
+                                    >
+                                        <defs>
+                                            <linearGradient id="timelineGrad" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#4596b6" stopOpacity={0.35}/>
+                                                <stop offset="95%" stopColor="#4596b6" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid {...CHART_GRID} vertical={false}/>
+                                        <XAxis
+                                            dataKey="ts"
+                                            tick={CHART_AXIS_STYLE}
+                                            interval="preserveStartEnd"
+                                        />
+                                        <YAxis tick={CHART_AXIS_STYLE} tickFormatter={v => v.toLocaleString('pt-BR')}/>
+                                        <Tooltip
+                                            contentStyle={CHART_TOOLTIP_STYLE}
+                                            formatter={(v) => [v.toLocaleString('pt-BR'), 'Pacotes']}
+                                        />
+                                        <Area
+                                            type="monotone"
+                                            dataKey="packets"
+                                            stroke="#4596b6"
+                                            strokeWidth={2}
+                                            fill="url(#timelineGrad)"
+                                        />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </ChartPanel>
+                        </div>
+                    ) : null}
 
                     <section className="panel panel--wide">
                         <div className="panel__header">
@@ -411,7 +608,7 @@ function CaptureDetailPage({
                     <div className="panel__header">
                         <div>
                             <span className="panel__eyebrow">Flows</span>
-                            <h3>Comunicações direcionais da captura</h3>
+                            <h3>Flows</h3>
                         </div>
                         <div className="pagination-actions">
                             <button

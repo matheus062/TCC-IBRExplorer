@@ -53,6 +53,15 @@ function EnrichmentAdminPage({token, onApiFailure}) {
     const [drafts, setDrafts] = useState({})
     const [savingId, setSavingId] = useState(null)
     const [message, setMessage] = useState('')
+    const [expandedIds, setExpandedIds] = useState(new Set())
+
+    function toggleExpanded(id) {
+        setExpandedIds((current) => {
+            const next = new Set(current)
+            next.has(id) ? next.delete(id) : next.add(id)
+            return next
+        })
+    }
 
     const loadIntegrations = useCallback(async () => {
         setState((current) => ({...current, isLoading: true, error: ''}))
@@ -157,10 +166,9 @@ function EnrichmentAdminPage({token, onApiFailure}) {
             <section className="hero-banner">
                 <div>
                     <span className="hero-banner__eyebrow">Administração</span>
-                    <h2>Configurações de Enriquecimento</h2>
+                    <h2>Enriquecimento</h2>
                     <p>
-                        Configure os provedores que serão utilizados para agregar contexto aos alvos observados nas
-                        capturas, como IPs de origem e destino compartilhados por flows e pacotes.
+                        Provedores externos usados para consulta de IPs observados nas capturas.
                     </p>
                 </div>
 
@@ -206,120 +214,138 @@ function EnrichmentAdminPage({token, onApiFailure}) {
                         {state.items.map((integration) => {
                             const schema = normalizeArray(integration.configSchema)
                             const draft = drafts[integration.id] ?? {enabled: false, config: {}}
+                            const isOpen = expandedIds.has(integration.id)
 
                             return (
-                                <article className="integration-card" key={integration.id}>
-                                    <div className="integration-card__header">
-                                        <div>
+                                <article className={`integration-card${isOpen ? ' is-open' : ''}`} key={integration.id}>
+                                    <button
+                                        className="integration-card__trigger"
+                                        onClick={() => toggleExpanded(integration.id)}
+                                        aria-expanded={isOpen}
+                                    >
+                                        <div className="integration-card__trigger-main">
                                             <span className="panel__eyebrow">{integration.identifier}</span>
                                             <h4>{integration.name}</h4>
                                         </div>
-                                    </div>
+                                        <div className="integration-card__trigger-meta">
+                                            <span
+                                                className={`integration-card__pill${draft.enabled ? ' is-active' : ''}`}>
+                                                {draft.enabled ? 'Ativa' : 'Inativa'}
+                                            </span>
+                                            {draft.alwaysExecute ? (
+                                                <span className="integration-card__pill">Automática</span>
+                                            ) : null}
+                                        </div>
+                                        <span className="integration-card__chevron" aria-hidden="true">›</span>
+                                    </button>
 
-                                    <div className="integration-card__toggles">
-                                        <label className="switch-field">
-                                            <input
-                                                type="checkbox"
-                                                checked={Boolean(draft.enabled)}
-                                                onChange={(event) => updateDraft(integration.id, (current) => ({
-                                                    ...current,
-                                                    enabled: event.target.checked,
-                                                }))}
-                                            />
-                                            <span>{draft.enabled ? 'Ativa' : 'Inativa'}</span>
-                                        </label>
-                                        <label className="switch-field">
-                                            <input
-                                                type="checkbox"
-                                                checked={Boolean(draft.alwaysExecute)}
-                                                onChange={(event) => updateDraft(integration.id, (current) => ({
-                                                    ...current,
-                                                    alwaysExecute: event.target.checked,
-                                                }))}
-                                            />
-                                            <span>Automática</span>
-                                        </label>
-                                    </div>
-
-                                    <p className="integration-card__description">{integration.description}</p>
-
-                                    <div className="usage-grid">
-                                        <span><strong>Dia</strong>{formatLimit(integration.dailyUsed, integration.dailyLimit)}</span>
-                                        <span><strong>Semana</strong>{formatLimit(integration.weeklyUsed, integration.weeklyLimit)}</span>
-                                        <span><strong>Mês</strong>{formatLimit(integration.monthlyUsed, integration.monthlyLimit)}</span>
-                                    </div>
-
-                                    <div className="integration-card__section">
-                                        <span
-                                            className="integration-card__section-title">Credenciais e parâmetros</span>
-                                        <div className="config-fields">
-                                            {schema.map((field) => (
-                                                <label className="field" key={field.name}>
-                                                    <span>{field.label ?? field.name}</span>
+                                    {isOpen ? (
+                                        <div className="integration-card__body">
+                                            <div className="integration-card__toggles">
+                                                <label className="switch-field">
                                                     <input
-                                                        type={field.type === 'password' ? 'password' : field.type === 'number' ? 'number' : 'text'}
-                                                        value={draft.config?.[field.name] ?? ''}
-                                                        placeholder={field.default !== undefined ? String(field.default) : ''}
-                                                        onChange={(event) => updateConfigValue(integration.id, field.name, event.target.value)}
+                                                        type="checkbox"
+                                                        checked={Boolean(draft.enabled)}
+                                                        onChange={(event) => updateDraft(integration.id, (current) => ({
+                                                            ...current,
+                                                            enabled: event.target.checked,
+                                                        }))}
                                                     />
-                                                    {field.help ? <small>{field.help}</small> : null}
+                                                    <span>{draft.enabled ? 'Ativa' : 'Inativa'}</span>
                                                 </label>
-                                            ))}
-                                        </div>
-                                    </div>
+                                                <label className="switch-field">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={Boolean(draft.alwaysExecute)}
+                                                        onChange={(event) => updateDraft(integration.id, (current) => ({
+                                                            ...current,
+                                                            alwaysExecute: event.target.checked,
+                                                        }))}
+                                                    />
+                                                    <span>Automática</span>
+                                                </label>
+                                            </div>
 
-                                    <div className="integration-card__section">
-                                        <span className="integration-card__section-title">Limites de uso</span>
-                                        <div className="config-fields config-fields--limits">
-                                            <label className="field">
-                                                <span>Limite diário</span>
-                                                <input
-                                                    type="number"
-                                                    value={draft.dailyLimit}
-                                                    onChange={(event) => updateDraft(integration.id, (current) => ({
-                                                        ...current,
-                                                        dailyLimit: event.target.value,
-                                                    }))}
-                                                />
-                                            </label>
-                                            <label className="field">
-                                                <span>Limite semanal</span>
-                                                <input
-                                                    type="number"
-                                                    value={draft.weeklyLimit}
-                                                    onChange={(event) => updateDraft(integration.id, (current) => ({
-                                                        ...current,
-                                                        weeklyLimit: event.target.value,
-                                                    }))}
-                                                />
-                                            </label>
-                                            <label className="field">
-                                                <span>Limite mensal</span>
-                                                <input
-                                                    type="number"
-                                                    value={draft.monthlyLimit}
-                                                    onChange={(event) => updateDraft(integration.id, (current) => ({
-                                                        ...current,
-                                                        monthlyLimit: event.target.value,
-                                                    }))}
-                                                />
-                                            </label>
-                                        </div>
-                                    </div>
+                                            <p className="integration-card__description">{integration.description}</p>
 
-                                    {integration.lastError ? (
-                                        <p className="form-message form-message--error">{integration.lastError}</p>
+                                            <div className="usage-grid">
+                                                <span><strong>Dia</strong>{formatLimit(integration.dailyUsed, integration.dailyLimit)}</span>
+                                                <span><strong>Semana</strong>{formatLimit(integration.weeklyUsed, integration.weeklyLimit)}</span>
+                                                <span><strong>Mês</strong>{formatLimit(integration.monthlyUsed, integration.monthlyLimit)}</span>
+                                            </div>
+
+                                            <div className="integration-card__section">
+                                                <span className="integration-card__section-title">Credenciais e parâmetros</span>
+                                                <div className="config-fields">
+                                                    {schema.map((field) => (
+                                                        <label className="field" key={field.name}>
+                                                            <span>{field.label ?? field.name}</span>
+                                                            <input
+                                                                type={field.type === 'password' ? 'password' : field.type === 'number' ? 'number' : 'text'}
+                                                                value={draft.config?.[field.name] ?? ''}
+                                                                placeholder={field.default !== undefined ? String(field.default) : ''}
+                                                                onChange={(event) => updateConfigValue(integration.id, field.name, event.target.value)}
+                                                            />
+                                                            {field.help ? <small>{field.help}</small> : null}
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="integration-card__section">
+                                                <span className="integration-card__section-title">Limites de uso</span>
+                                                <div className="config-fields config-fields--limits">
+                                                    <label className="field">
+                                                        <span>Limite diário</span>
+                                                        <input
+                                                            type="number"
+                                                            value={draft.dailyLimit}
+                                                            onChange={(event) => updateDraft(integration.id, (current) => ({
+                                                                ...current,
+                                                                dailyLimit: event.target.value,
+                                                            }))}
+                                                        />
+                                                    </label>
+                                                    <label className="field">
+                                                        <span>Limite semanal</span>
+                                                        <input
+                                                            type="number"
+                                                            value={draft.weeklyLimit}
+                                                            onChange={(event) => updateDraft(integration.id, (current) => ({
+                                                                ...current,
+                                                                weeklyLimit: event.target.value,
+                                                            }))}
+                                                        />
+                                                    </label>
+                                                    <label className="field">
+                                                        <span>Limite mensal</span>
+                                                        <input
+                                                            type="number"
+                                                            value={draft.monthlyLimit}
+                                                            onChange={(event) => updateDraft(integration.id, (current) => ({
+                                                                ...current,
+                                                                monthlyLimit: event.target.value,
+                                                            }))}
+                                                        />
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            {integration.lastError ? (
+                                                <p className="form-message form-message--error">{integration.lastError}</p>
+                                            ) : null}
+
+                                            <div className="integration-card__footer">
+                                                <button
+                                                    className="button button--primary"
+                                                    onClick={() => saveIntegration(integration)}
+                                                    disabled={savingId === integration.id}
+                                                >
+                                                    {savingId === integration.id ? 'Salvando...' : 'Salvar configuração'}
+                                                </button>
+                                            </div>
+                                        </div>
                                     ) : null}
-
-                                    <div className="integration-card__footer">
-                                        <button
-                                            className="button button--primary"
-                                            onClick={() => saveIntegration(integration)}
-                                            disabled={savingId === integration.id}
-                                        >
-                                            {savingId === integration.id ? 'Salvando...' : 'Salvar configuração'}
-                                        </button>
-                                    </div>
                                 </article>
                             )
                         })}

@@ -1,13 +1,8 @@
-import {useDeferredValue, useState} from 'react'
+import {useDeferredValue, useEffect, useState} from 'react'
 import EmptyState from '../components/EmptyState'
 import StatusBadge from '../components/StatusBadge'
-import {
-    formatDateTime,
-    formatRelativePercent,
-    getCaptureStatus,
-    getCaptureVisibility,
-    getFileLabel,
-} from '../lib/formatters'
+import {formatBytes, formatDateTime, getCaptureStatus, getFileLabel,} from '../lib/formatters'
+import {listPublicPcapFiles} from '../lib/api'
 
 function matchesCapture(capture, term) {
     if (!term) {
@@ -19,8 +14,7 @@ function matchesCapture(capture, term) {
         capture.id,
         capture.key,
         getFileLabel(capture.file),
-        getCaptureStatus(capture.status).label,
-        getCaptureVisibility(capture.visibility).label,
+        capture.createdBy?.name,
     ]
         .filter(Boolean)
         .join(' ')
@@ -29,49 +23,72 @@ function matchesCapture(capture, term) {
     return haystack.includes(normalizedTerm)
 }
 
-function CapturesPage({captures, capturesState, onNavigate, onRefresh}) {
+function ExplorePage({token, onNavigate, onApiFailure}) {
+    const [state, setState] = useState({items: [], total: 0, isLoading: false, error: ''})
+    const [refreshKey, setRefreshKey] = useState(0)
     const [search, setSearch] = useState('')
     const deferredSearch = useDeferredValue(search)
-    const filteredCaptures = captures.filter((capture) => matchesCapture(capture, deferredSearch))
+    const filtered = state.items.filter((c) => matchesCapture(c, deferredSearch))
     const emptyCopy = search
         ? 'Nenhum arquivo combina com a busca atual.'
-        : 'Envie um arquivo PCAP ou PCAPNG para iniciar a análise.'
+        : 'Nenhuma captura pública disponível no momento.'
+
+    useEffect(() => {
+        async function load() {
+            setState((s) => ({...s, isLoading: true, error: ''}))
+
+            try {
+                const response = await listPublicPcapFiles(token)
+
+                setState({
+                    items: response.entities ?? [],
+                    total: response.total ?? 0,
+                    isLoading: false,
+                    error: '',
+                })
+            } catch (error) {
+                const msg = onApiFailure(error, 'Não foi possível carregar as capturas públicas.')
+
+                setState((s) => ({...s, isLoading: false, error: msg}))
+            }
+        }
+
+        void load()
+    }, [token, refreshKey])
 
     return (
         <div className="page-grid captures-page">
             <section className="panel panel--wide">
                 <div className="panel__header">
                     <div>
-                        <span className="panel__eyebrow">Capturas</span>
-                        <h2>Minhas capturas</h2>
+                        <span className="panel__eyebrow">Explorar</span>
+                        <h2>Capturas PCAP/PCAPNG públicas</h2>
                     </div>
 
                     <div className="panel__actions">
                         <input
                             className="search-input"
                             value={search}
-                            onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Buscar por chave, nome ou status"
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Buscar por nome ou autor"
                         />
-                        <button className="button button--ghost" onClick={onRefresh}>
+                        <button
+                            className="button button--ghost"
+                            onClick={() => setRefreshKey((k) => k + 1)}
+                        >
                             Atualizar
-                        </button>
-                        <button className="button button--primary" onClick={() => onNavigate('/captures/upload')}>
-                            Novo upload
                         </button>
                     </div>
                 </div>
 
-                {capturesState.error ? <p className="form-message form-message--error">{capturesState.error}</p> : null}
+                {state.error ? <p className="form-message form-message--error">{state.error}</p> : null}
 
-                {capturesState.isLoading ? (
+                {state.isLoading ? (
                     <p className="panel__feedback">Consultando API...</p>
-                ) : filteredCaptures.length === 0 ? (
+                ) : filtered.length === 0 ? (
                     <EmptyState
-                        title="Nenhuma captura encontrada"
+                        title="Nenhuma captura pública encontrada"
                         copy={emptyCopy}
-                        actionLabel="Abrir upload"
-                        onAction={() => onNavigate('/captures/upload')}
                     />
                 ) : (
                     <div className="table-wrap">
@@ -80,15 +97,15 @@ function CapturesPage({captures, capturesState, onNavigate, onRefresh}) {
                             <tr>
                                 <th>ID</th>
                                 <th>Arquivo</th>
+                                <th>Enviado por</th>
                                 <th>Status</th>
-                                <th>Visibilidade</th>
-                                <th>Progresso</th>
+                                <th>Tamanho</th>
                                 <th>Criado em</th>
                                 <th></th>
                             </tr>
                             </thead>
                             <tbody>
-                            {filteredCaptures.map((capture) => (
+                            {filtered.map((capture) => (
                                 <tr key={capture.id} onClick={() => onNavigate(`/captures/${capture.id}`)}>
                                     <td>#{capture.id}</td>
                                     <td>
@@ -97,17 +114,17 @@ function CapturesPage({captures, capturesState, onNavigate, onRefresh}) {
                                             <span className="table-muted">{capture.key}</span>
                                         </div>
                                     </td>
+                                    <td className="table-soft">{capture.createdBy?.name ?? '—'}</td>
                                     <td>
                                         <StatusBadge status={getCaptureStatus(capture.status)}/>
                                     </td>
-                                    <td className="table-soft">{getCaptureVisibility(capture.visibility).label}</td>
-                                    <td className="table-strong">{formatRelativePercent(capture.processed)}</td>
+                                    <td className="table-soft">{formatBytes(capture.fileSize)}</td>
                                     <td className="table-soft">{formatDateTime(capture.createdAt)}</td>
                                     <td>
                                         <button
                                             className="button button--ghost"
-                                            onClick={(event) => {
-                                                event.stopPropagation()
+                                            onClick={(e) => {
+                                                e.stopPropagation()
                                                 onNavigate(`/captures/${capture.id}`)
                                             }}
                                         >
@@ -125,4 +142,4 @@ function CapturesPage({captures, capturesState, onNavigate, onRefresh}) {
     )
 }
 
-export default CapturesPage
+export default ExplorePage

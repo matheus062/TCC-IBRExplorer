@@ -482,6 +482,20 @@ function App() {
         setAuthError('')
         setPasswordSuccess('')
 
+        if (passwordForm.password.length < 8) {
+            setAuthLoading(false)
+            setAuthError('A senha deve ter no mínimo 8 caracteres.')
+
+            return
+        }
+
+        if (!/[^A-Za-z0-9]/.test(passwordForm.password)) {
+            setAuthLoading(false)
+            setAuthError('A senha deve conter ao menos um caractere especial.')
+
+            return
+        }
+
         if (passwordForm.password !== passwordForm.confirmPassword) {
             setAuthLoading(false)
             setAuthError('A confirmação da senha precisa ser idêntica ao valor principal.')
@@ -599,7 +613,6 @@ function App() {
         if (route.name === 'password-reset') {
             return (
                 <PasswordResetPage
-                    token={passwordForm.token}
                     password={passwordForm.password}
                     confirmPassword={passwordForm.confirmPassword}
                     loading={authLoading}

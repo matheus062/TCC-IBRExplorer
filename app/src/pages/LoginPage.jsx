@@ -27,10 +27,9 @@ function LoginPage({
             <section className="auth-hero">
                 <div className="auth-hero__panel">
                     <span className="auth-hero__eyebrow">IBRExplorer</span>
-                    <h1>Análise colaborativa de capturas PCAP/PCAPNG.</h1>
+                    <h1>Análise de capturas PCAP/PCAPNG.</h1>
                     <p>
-                        Acesse o ambiente para enviar capturas, acompanhar o processamento, investigar flows
-                        e enriquecer alvos observados em tráfego de Internet Background Radiation.
+                        Envio, processamento e investigação de tráfego de Internet Background Radiation.
                     </p>
                 </div>
 
@@ -52,12 +51,12 @@ function LoginPage({
 
             <section className="auth-card">
                 <div className="auth-card__header">
-                    <span className="panel__eyebrow">Acesso seguro</span>
+                    <span className="panel__eyebrow">Acesso</span>
                     <h2>{authMode === 'login' ? 'Entrar no IBRExplorer' : 'Recuperar acesso'}</h2>
                     <p>
                         {authMode === 'login'
-                            ? 'Use sua conta institucional para acessar o workspace de análise.'
-                            : 'Informe seu email para solicitar um token de redefinição de senha.'}
+                            ? 'Informe suas credenciais para continuar.'
+                            : 'Informe seu e-mail para receber um token de redefinição.'}
                     </p>
                 </div>
 

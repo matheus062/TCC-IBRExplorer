@@ -30,14 +30,9 @@ body,
 
 body {
     color: #dfe9ef;
-    overflow: hidden;
+    overflow: auto;
 }
 
-@media (max-width: 1180px) {
-    body {
-        overflow: auto;
-    }
-}
 
 a {
     color: inherit;

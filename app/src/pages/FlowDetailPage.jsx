@@ -1,3 +1,4 @@
+import {useState} from 'react'
 import EmptyState from '../components/EmptyState'
 import EnrichmentPanel from '../components/EnrichmentPanel'
 import PacketListPanel from '../components/PacketListPanel'
@@ -60,6 +61,8 @@ function FlowDetailPage({
         )
     }
 
+    const [activePanel, setActivePanel] = useState(null)
+
     const captureLabel = capture ? getFileLabel(capture.file) : `Captura #${captureId}`
     const duration = formatFlowDuration(flow.startTimestamp, flow.endTimestamp)
     const pcapId = flow?.pcap?.id ?? null
@@ -99,24 +102,44 @@ function FlowDetailPage({
                         <span className="flow-summary__stat-label">Início</span>
                         <span className="flow-summary__stat-value">{formatDateTime(flow.startTimestamp)}</span>
                     </div>
+                    <div className="flow-summary__stat">
+                        <span className="flow-summary__stat-label">Fim</span>
+                        <span className="flow-summary__stat-value">{formatDateTime(flow.endTimestamp)}</span>
+                    </div>
+                    {(flow.protocol === 1 || flow.protocol === 58) && flow.icmpType != null ? (
+                        <div className="flow-summary__stat">
+                            <span className="flow-summary__stat-label">ICMP Type</span>
+                            <span className="flow-summary__stat-value">{flow.icmpType}</span>
+                        </div>
+                    ) : null}
+                    {(flow.protocol === 1 || flow.protocol === 58) && flow.icmpCode != null ? (
+                        <div className="flow-summary__stat">
+                            <span className="flow-summary__stat-label">ICMP Code</span>
+                            <span className="flow-summary__stat-value">{flow.icmpCode}</span>
+                        </div>
+                    ) : null}
                 </div>
             </div>
 
-            <div className="flow-detail-grid">
-                <PacketListPanel
-                    token={token}
-                    pcapId={pcapId}
-                    flowKey={flow.flowKey}
-                    cacheKey={`flow:${flow.id}`}
-                    onPacketClick={(packet) => onNavigate(`/captures/${captureId}/flows/${flow.id}/packets/${packet.id}`)}
-                    onApiFailure={onApiFailure}
-                />
+            <div className={`flow-detail-grid${activePanel ? ` flow-detail-grid--${activePanel}` : ''}`}>
+                <div onMouseEnter={() => setActivePanel('left')}>
+                    <PacketListPanel
+                        token={token}
+                        pcapId={pcapId}
+                        flowKey={flow.flowKey}
+                        cacheKey={`flow:${flow.id}`}
+                        onPacketClick={(packet) => onNavigate(`/captures/${captureId}/flows/${flow.id}/packets/${packet.id}`)}
+                        onApiFailure={onApiFailure}
+                    />
+                </div>
 
-                <EnrichmentPanel
-                    token={token}
-                    flowId={flow.id}
-                    onApiFailure={onApiFailure}
-                />
+                <div onMouseEnter={() => setActivePanel('right')}>
+                    <EnrichmentPanel
+                        token={token}
+                        flowId={flow.id}
+                        onApiFailure={onApiFailure}
+                    />
+                </div>
             </div>
         </div>
     )
