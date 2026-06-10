@@ -90,11 +90,11 @@ class CensysService {
         }
 
         if (!empty($data['error'])) {
-            return (string)$data['error'];
+            return is_array($data['error']) ? json_encode($data['error']) : (string)$data['error'];
         }
 
         if (!empty($data['message'])) {
-            return (string)$data['message'];
+            return is_array($data['message']) ? json_encode($data['message']) : (string)$data['message'];
         }
 
         return 'Erro Censys HTTP ' . ($response['statusCode'] ?? 0) . '.';
