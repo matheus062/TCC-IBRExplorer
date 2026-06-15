@@ -37,6 +37,19 @@ export function formatDateTime(value) {
     }).format(new Date(value))
 }
 
+export function formatDateParts(value) {
+    if (!value) {
+        return {date: 'Não informado', time: ''}
+    }
+
+    const parsed = new Date(value)
+
+    return {
+        date: new Intl.DateTimeFormat('pt-BR', {dateStyle: 'short'}).format(parsed),
+        time: new Intl.DateTimeFormat('pt-BR', {timeStyle: 'short'}).format(parsed),
+    }
+}
+
 export function formatRelativePercent(value) {
     if (value === undefined || value === null || value === '') {
         return '0%'

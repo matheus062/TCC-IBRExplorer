@@ -766,6 +766,19 @@
     color: var(--text-muted);
 }
 
+.detail-card strong.detail-card__datetime {
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    white-space: normal;
+}
+
+.detail-card__time {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
 .search-input,
 .field input,
 .field textarea,

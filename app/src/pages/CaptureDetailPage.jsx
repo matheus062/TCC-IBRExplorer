@@ -22,6 +22,7 @@ import StatusBadge from '../components/StatusBadge'
 import {getPcapStats, listPcapFlows} from '../lib/api'
 import {
     formatBytes,
+    formatDateParts,
     formatDateTime,
     formatEndpoint,
     formatRelativePercent,
@@ -152,6 +153,20 @@ function SortButton({field, label, order, onSort}) {
         <button className="table-sort-button" type="button" onClick={() => onSort(field)}>
             {label}{indicator}
         </button>
+    )
+}
+
+function DateDetailCard({label, value}) {
+    const {date, time} = formatDateParts(value)
+
+    return (
+        <div className="detail-card">
+            <span>{label}</span>
+            <strong className="detail-card__datetime">
+                {date}
+                {time ? <span className="detail-card__time">{time}</span> : null}
+            </strong>
+        </div>
     )
 }
 
@@ -521,30 +536,12 @@ function CaptureDetailPage({
                                 <span>Visibilidade</span>
                                 <strong>{visibility.label}</strong>
                             </div>
-                            <div className="detail-card">
-                                <span>Criado em</span>
-                                <strong>{formatDateTime(capture.createdAt)}</strong>
-                            </div>
-                            <div className="detail-card">
-                                <span>Upload confirmado em</span>
-                                <strong>{formatDateTime(capture.uploadedAt)}</strong>
-                            </div>
-                            <div className="detail-card">
-                                <span>Início do parser</span>
-                                <strong>{formatDateTime(capture.processStartedAt)}</strong>
-                            </div>
-                            <div className="detail-card">
-                                <span>Fim do parser</span>
-                                <strong>{formatDateTime(capture.processFinishedAt)}</strong>
-                            </div>
-                            <div className="detail-card">
-                                <span>Início do PCAP</span>
-                                <strong>{formatDateTime(pcap?.startTimestamp)}</strong>
-                            </div>
-                            <div className="detail-card">
-                                <span>Fim do PCAP</span>
-                                <strong>{formatDateTime(pcap?.endTimestamp)}</strong>
-                            </div>
+                            <DateDetailCard label="Criado em" value={capture.createdAt}/>
+                            <DateDetailCard label="Upload confirmado em" value={capture.uploadedAt}/>
+                            <DateDetailCard label="Início do parser" value={capture.processStartedAt}/>
+                            <DateDetailCard label="Fim do parser" value={capture.processFinishedAt}/>
+                            <DateDetailCard label="Início do PCAP" value={pcap?.startTimestamp}/>
+                            <DateDetailCard label="Fim do PCAP" value={pcap?.endTimestamp}/>
                         </div>
                         {capture.processError ? (
                             <p className="form-message form-message--error">{capture.processError}</p>
