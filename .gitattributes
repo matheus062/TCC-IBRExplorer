@@ -1,0 +1,6 @@
+# Garante final de linha LF para scripts e arquivos usados dentro de containers Linux,
+# mesmo quando o repositório é clonado no Windows (evita "exec ... no such file or directory").
+*.sh            text eol=lf
+entrypoint.sh   text eol=lf
+Dockerfile      text eol=lf
+*.dockerfile    text eol=lf
