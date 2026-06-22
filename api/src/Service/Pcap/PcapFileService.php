@@ -627,18 +627,12 @@ class PcapFileService extends EntityService implements HasProcessBeforeSave {
     private function queryTopTalkers(int $pcapId): array {
         $db = PostgreSQL::$instance;
         $db->execute(
-            'SELECT ip, SUM(packets) AS packets, SUM(bytes) AS bytes
-             FROM (
-                 SELECT "srcIp" AS ip, SUM("packetCount") AS packets, SUM("bytesTotal") AS bytes
-                 FROM "pcap_flow" WHERE "pcap" = ? GROUP BY "srcIp"
-                 UNION ALL
-                 SELECT "dstIp" AS ip, SUM("packetCount") AS packets, SUM("bytesTotal") AS bytes
-                 FROM "pcap_flow" WHERE "pcap" = ? GROUP BY "dstIp"
-             ) combined
-             GROUP BY ip
+            'SELECT "srcIp" AS ip, SUM("packetCount") AS packets, SUM("bytesTotal") AS bytes
+             FROM "pcap_flow" WHERE "pcap" = ?
+             GROUP BY "srcIp"
              ORDER BY bytes DESC
              LIMIT 10',
-            [$pcapId, $pcapId]
+            [$pcapId]
         );
 
         return array_map(
