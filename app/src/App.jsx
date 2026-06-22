@@ -648,10 +648,9 @@ function App() {
             case 'captures':
                 return (
                     <CapturesPage
-                        captures={capturesState.items}
-                        capturesState={capturesState}
+                        token={session.token}
                         onNavigate={handleNavigate}
-                        onRefresh={loadCaptures}
+                        onApiFailure={handleApiFailure}
                     />
                 )
             case 'captures-public':

@@ -259,6 +259,7 @@ export function listPcapFiles(token, {limit = 24, page = 1, extraQuery = {}} = {
         token,
         query: {
             fields: DEFAULT_CAPTURE_FIELDS,
+            orderBy: 'createdAt DESC',
             limit,
             page,
             ...extraQuery,
